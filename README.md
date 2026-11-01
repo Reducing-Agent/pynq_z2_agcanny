@@ -67,9 +67,9 @@ reduce throughput.
 ## Repository layout
 
 ```
-src/hls/       Vitis-HLS C++ source and the generated IP repository
+src/hls/       Vitis-HLS C++ source and the one-command build script
 src/ps/        PYNQ drivers, live view server, gesture modules, benchmarks
-sim/           golden reference models, testbenches, validation results
+sim/           C testbench and Python golden-reference cross-checks
 build/         Vivado block-design script and HLS build configuration
 board/         on-board run instructions, file manifest, checksums
 data/          test images
@@ -124,8 +124,12 @@ python3 -u validate_v8.py        # 6 stages, all green: 180 pixel-exact
 python3 -u bench_fusion_5pass.py  # pass-count linearity experiment
 ```
 
-See `reproduce/` for the full ordered sequence and `sim/VALIDATION_RESULTS.md`
-for the recorded numbers.
+See `reproduce/` for the full ordered sequence. The recorded numbers are in
+`report/design_report.md` (section 4).
+
+This repository carries the released design only: one C++ source, one header,
+one build script, one testbench. Intermediate iterations are kept out on
+purpose so that every file here is load-bearing.
 
 ---
 
