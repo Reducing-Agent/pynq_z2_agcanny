@@ -7,7 +7,7 @@ a89ed479e1c91074ae714fc737a12a43  hw_driver.py
 6b5fd2f907b7214a528530dcca6b418a  rgb2gray.bit
 9b7407a3772b4d2800d00b6d65ba751a  rgb2gray.hwh
 0a6aa6812f881c95d33c80a3a512f7b2  session.py
-3ff2e4142d37dfa3a83475f262ab6b19  start_web.sh
+8352a3999ba5379b21b65e17cb7c6d9f  start_web.sh
 2ee08c6024acae25bb2eeafb2933eb5a  swipe.py
 01f0ff4c2d7ed94df1eadc69e40eea8f  validate_v8.py
 b919c2e733db37c93e391d29b3732218  _diag_fingers.py

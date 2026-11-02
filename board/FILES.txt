@@ -1,82 +1,82 @@
-# ============================================================
-#  rgb2gray_v82 文件清单（2026-10-30 整理）
-# ============================================================
-# 板端目录：/home/xilinx/jupyter_notebooks/rgb2gray_v82/
-#   * 目录名 != 位流版本。位流就叫 rgb2gray.bit，不带版本号，
-#     一律取「脚本同目录」那份，靠 MD5 判定是哪个版本。
-# 位流：.bit 6b5fd2f907b7214a528530dcca6b418a / .hwh 9b7407a3772b4d2800d00b6d65ba751a
-# 构建：2026-10-30 13:58 vitis(v++ -c / --impl / --package) + vivado build_v8.tcl
-# 全工程 post-route：WNS +0.435 / WHS +0.020 / 0 failing endpoints
-# 全工程资源：LUT 8626 (16.21%) / FF 10331 (9.71%) / RAMB18 15 (5.36%) / DSP 32 (14.55%)
-# csim PASS / cosim PASS（Verilog RTL）；csynth 主循环 II=1，Fmax 136.99 MHz
-# 本版改动：修「条件 DDR 写打掉 burst」——结果先落片上输出行缓冲 outr[2][MAX_W]，
-#   DDR 写改为无条件连续写。csynth 报告 burst 推断 20 Inferred / 1 Fail。
-#
-# 2026-10-31 板端实测（两档，别混为一档）：
-#   op 0 逐像素 3.225 ms / op 1~8 单算子 3.253~3.261 ms（1.06 cyc/px）
-#   op 9~11 四级融合 3.655~3.661 ms（1.19 cyc/px，比单算子慢 12.4%）
-#   修复前一律 20.57 ms（6.70 cyc/px）-> 单算子 6.3x / 融合 5.6x
-#   II=1 地板 3.072 ms：达成率 单算子 94.3% / 融合 84.0%
-#   64x64 1.45 / 160x120 1.22 / 320x240 1.08 / 640x480 1.06 cyc/px
-#
-# 2026-10-31 validate_v8.py 真板六阶段全通过，失败 0 组：
-#   180 组逐像素对拍 + 72 组 sigma 回读（整数级精确相等）+ 3 档阈值对拍 + 4 哨兵
-#   sigma 标定：注入 8 -> 实测 8.01（+0.1%）；纯噪声图 Sobel 216072 -> Canny 0
-#
-# 融合价值锚点（已实测坐实，bench_fusion_5pass.py 5 趟实验）：
-#   趟数 1~5 核内 3.263 / 6.512 / 9.777 / 13.036 / 16.317 ms；融合 1 趟 3.667 ms
-#   -> 核内 4.45x（报告用）；端到端 75.069 / 15.363 = 4.89x（口头用）
-#   线性度：单趟端到端极差仅 0.024 ms
-#   （5 趟是架构选型对照方案，不是历史版本；对外只讲绝对量，别主动亮倍率）
-#
-# 上板必要性：A=最小演示集（缺一不可） B=排障取证 C=文档
-# 本清单不校验自己（FILES.txt 的 MD5 会自指矛盾），其余文件都参与校验。
-#
-# 11-01 修订：
-#   1) gesture.py / control.py 换成软件组 11-01 交付版（修 5 指 + FINGER_MODE_MAP）
-#      gesture 36833/dd9af653 -> 38327/03975657；control 3391/845b0885 -> 4485/08e4097d
-#   2) 新增 repro_5fingers.py（软件组的 5 指复现脚本，离线自测用）
-#   3) 1 指（握拳）必现 bug：MIN_ROUGH=1.14 按张开手掌定，握拳周长比只有 1.08~1.10
-#      -> 启动必须带环境变量 MIN_ROUGH=1.07（已本地验证，1.07 是拐点）
-#        代价：新放行 rough in [1.07,1.14)，必须重跑空手 60s 误检压测
-#
-# 10-30 修订：
-#   1) validate_v8.py 升级到 v8.2 口径（12 模式，含 op 9/10/11 三抽头，新增阶段 4/6）
-#   2) hw_driver 新增 thresh_override；CANNY_K_HI 16.0 -> 7.56（补上级1去噪的 0.2734 衰减）
-#   3) sigma.py 的 sigma->阈值系数改为从 hw_driver 取，消灭两套口径
-#   4) 删掉两处旧版位流兜底路径（live_view_raw 的 v4 / hw_driver 的 /home/xilinx/rgb2gray）
-#   5) 板端目录统一为 rgb2gray_v82（原来 v4/v5/v8 四个名字并存）
-#
-文件                                     字节 MD5(32位)                           档    说明
-----------------------------------------------------------------------------------------------------------------------
-check_kit.py                         8843 537014f33023938d2cff9efe4910fa3d   A    上板第一件事：验位流 MD5
-control.py                           4930 f43c32d9bd6fd6a77ff5607f69aca06c   A    网页控制接口
-filters.py                          16666 8ec4909b71b2ed4dbe4006d701d2e9b1   A    黄金参考，对拍与 SIM 都靠它
-gesture.py                          38327 03975657e675a850fe81839a24dc25c7   A    手势识别（严格版，勿用软件组那版覆盖）
-hw_driver.py                        39024 a89ed479e1c91074ae714fc737a12a43   A    PL 驱动（寄存器/cache/MD5/AGC/sigma 全在这）
-live_view_raw.py                    80938 57ef1e0b661bd3b2f3deb3ce58676584   A    四线程网页演示主程序
-rgb2gray.bit                      4045771 6b5fd2f907b7214a528530dcca6b418a   A    v8.2b 位流（burst 修复版，勿用旧 v8.2 e9645754）
-rgb2gray.hwh                       266281 9b7407a3772b4d2800d00b6d65ba751a   A    Overlay 描述文件，必须与 .bit 同名
-session.py                          10479 0a6aa6812f881c95d33c80a3a512f7b2   A    会话状态机
-start_web.sh                         1236 3ff2e4142d37dfa3a83475f262ab6b19   A    一键起网页演示（内部带 MIN_ROUGH=1.07，别手工敲漏）
-swipe.py                             5916 2ee08c6024acae25bb2eeafb2933eb5a   A    挥手判据
-validate_v8.py                      41042 01f0ff4c2d7ed94df1eadc69e40eea8f   A    12 模式回归 + 创新证据采集
-_diag_fingers.py                     4562 b919c2e733db37c93e391d29b3732218   B    五指现场诊断：实时打印候选块 solid/ROUGH/asp 与拒因
-_smoke_calib.py                      1307 e5a8162aba35f4c5b54bfdf147e8fd3d   B    校准自测 4 例
-_smoke_dir.py                        3158 8a310fd4f477a3da1d69c086f182a4cb   B    挥手方向自测 13 例
-_smoke_page.py                        728 ace264b0eac80b82ffc943212f4b774e   B    网页自测
-_smoke_swipe.py                      5201 f2e2976d472eb211c9f6f342cb1900a8   B    挥手自测 12 例
-_smoke_track.py                      7024 786cf94db95f84135bb90296c559c5db   B    手势跟踪自测 6 例
-bench_e2e_v6.py                      9400 b8b466249087d681ddff01704d772a1a   B    端到端 bench（v6 口径，对照用）
-bench_fusion_5pass.py                6417 47e0cb8bf2a3a5970dd4403cb2025813   B    融合 vs 多趟：5 趟线性实验（坐实融合倍率）
-diag_fps.py                          4186 3ba550f23bb435756e5ad790323c183e   B    帧率分解 PIPE/PUSH/CLIENT
-diag_read.py                         5423 f1cbc840444629c4abd635f7d7287d3a   B    读回校验排障
-diag_slow.py                         6689 deb75b4a2d055c71f0d842a1e6a180f9   B    640x480 耗时分解
-probe_camera.py                      4689 0b387383001aa10561b73b05042f1245   B    相机探测（确认 MJPG / 分辨率）
-probe_read.py                        6536 e55e974b8141467bb1b5b00dec21f12e   B    读回排障
-repro_5fingers.py                    2767 a6b93df362c3058ea2cf2b13524ac51f   B    5 指复现脚本（软件组 11-01 交付，合成手 1~5 指离线自测）
-sigma.py                            11472 b01447e2da7c749d1a7813a0ad48c094   B    sigma 标定 / 照度扫描（创新 15 分证据）
-BOARD_CHECKLIST_1030.md             14759 ab0a3768ba9320e2debed2fa2ebe4614   C    上板 8 步（现场速查）
-README_上板说明_v82.md                  23510 0798204ecb806a333b3b1cac7d3befce   C    完整说明与排障手册
-----------------------------------------------------------------------------------------------------------------------
-共 29 个文件：A 最小演示集 12 个 / B 排障取证 15 个 / C 文档 2 个
+# ============================================================
+#  rgb2gray_v82 文件清单（2026-10-30 整理）
+# ============================================================
+# 板端目录：/home/xilinx/jupyter_notebooks/rgb2gray_v82/
+#   * 目录名 != 位流版本。位流就叫 rgb2gray.bit，不带版本号，
+#     一律取「脚本同目录」那份，靠 MD5 判定是哪个版本。
+# 位流：.bit 6b5fd2f907b7214a528530dcca6b418a / .hwh 9b7407a3772b4d2800d00b6d65ba751a
+# 构建：2026-10-30 13:58 vitis(v++ -c / --impl / --package) + vivado build_v8.tcl
+# 全工程 post-route：WNS +0.435 / WHS +0.020 / 0 failing endpoints
+# 全工程资源：LUT 8626 (16.21%) / FF 10331 (9.71%) / RAMB18 15 (5.36%) / DSP 32 (14.55%)
+# csim PASS / cosim PASS（Verilog RTL）；csynth 主循环 II=1，Fmax 136.99 MHz
+# 本版改动：修「条件 DDR 写打掉 burst」——结果先落片上输出行缓冲 outr[2][MAX_W]，
+#   DDR 写改为无条件连续写。csynth 报告 burst 推断 20 Inferred / 1 Fail。
+#
+# 2026-10-31 板端实测（两档，别混为一档）：
+#   op 0 逐像素 3.225 ms / op 1~8 单算子 3.253~3.261 ms（1.06 cyc/px）
+#   op 9~11 四级融合 3.655~3.661 ms（1.19 cyc/px，比单算子慢 12.4%）
+#   修复前一律 20.57 ms（6.70 cyc/px）-> 单算子 6.3x / 融合 5.6x
+#   II=1 地板 3.072 ms：达成率 单算子 94.3% / 融合 84.0%
+#   64x64 1.45 / 160x120 1.22 / 320x240 1.08 / 640x480 1.06 cyc/px
+#
+# 2026-10-31 validate_v8.py 真板六阶段全通过，失败 0 组：
+#   180 组逐像素对拍 + 72 组 sigma 回读（整数级精确相等）+ 3 档阈值对拍 + 4 哨兵
+#   sigma 标定：注入 8 -> 实测 8.01（+0.1%）；纯噪声图 Sobel 216072 -> Canny 0
+#
+# 融合价值锚点（已实测坐实，bench_fusion_5pass.py 5 趟实验）：
+#   趟数 1~5 核内 3.263 / 6.512 / 9.777 / 13.036 / 16.317 ms；融合 1 趟 3.667 ms
+#   -> 核内 4.45x（报告用）；端到端 75.069 / 15.363 = 4.89x（口头用）
+#   线性度：单趟端到端极差仅 0.024 ms
+#   （5 趟是架构选型对照方案，不是历史版本；对外只讲绝对量，别主动亮倍率）
+#
+# 上板必要性：A=最小演示集（缺一不可） B=排障取证 C=文档
+# 本清单不校验自己（FILES.txt 的 MD5 会自指矛盾），其余文件都参与校验。
+#
+# 11-01 修订：
+#   1) gesture.py / control.py 换成软件组 11-01 交付版（修 5 指 + FINGER_MODE_MAP）
+#      gesture 36833/dd9af653 -> 38327/03975657；control 3391/845b0885 -> 4485/08e4097d
+#   2) 新增 repro_5fingers.py（软件组的 5 指复现脚本，离线自测用）
+#   3) 1 指（握拳）必现 bug：MIN_ROUGH=1.14 按张开手掌定，握拳周长比只有 1.08~1.10
+#      -> 启动必须带环境变量 MIN_ROUGH=1.07（已本地验证，1.07 是拐点）
+#        代价：新放行 rough in [1.07,1.14)，必须重跑空手 60s 误检压测
+#
+# 10-30 修订：
+#   1) validate_v8.py 升级到 v8.2 口径（12 模式，含 op 9/10/11 三抽头，新增阶段 4/6）
+#   2) hw_driver 新增 thresh_override；CANNY_K_HI 16.0 -> 7.56（补上级1去噪的 0.2734 衰减）
+#   3) sigma.py 的 sigma->阈值系数改为从 hw_driver 取，消灭两套口径
+#   4) 删掉两处旧版位流兜底路径（live_view_raw 的 v4 / hw_driver 的 /home/xilinx/rgb2gray）
+#   5) 板端目录统一为 rgb2gray_v82（原来 v4/v5/v8 四个名字并存）
+#
+文件                                     字节 MD5(32位)                           档    说明
+----------------------------------------------------------------------------------------------------------------------
+check_kit.py                         8843 537014f33023938d2cff9efe4910fa3d   A    上板第一件事：验位流 MD5
+control.py                           4930 f43c32d9bd6fd6a77ff5607f69aca06c   A    网页控制接口
+filters.py                          16666 8ec4909b71b2ed4dbe4006d701d2e9b1   A    黄金参考，对拍与 SIM 都靠它
+gesture.py                          38327 03975657e675a850fe81839a24dc25c7   A    手势识别（严格版，勿用软件组那版覆盖）
+hw_driver.py                        39024 a89ed479e1c91074ae714fc737a12a43   A    PL 驱动（寄存器/cache/MD5/AGC/sigma 全在这）
+live_view_raw.py                    80938 57ef1e0b661bd3b2f3deb3ce58676584   A    四线程网页演示主程序
+rgb2gray.bit                      4045771 6b5fd2f907b7214a528530dcca6b418a   A    v8.2b 位流（burst 修复版，勿用旧 v8.2 e9645754）
+rgb2gray.hwh                       266281 9b7407a3772b4d2800d00b6d65ba751a   A    Overlay 描述文件，必须与 .bit 同名
+session.py                          10479 0a6aa6812f881c95d33c80a3a512f7b2   A    会话状态机
+start_web.sh                         1210 8352a3999ba5379b21b65e17cb7c6d9f   A    一键起网页演示（内部带 MIN_ROUGH=1.07，别手工敲漏）
+swipe.py                             5916 2ee08c6024acae25bb2eeafb2933eb5a   A    挥手判据
+validate_v8.py                      41042 01f0ff4c2d7ed94df1eadc69e40eea8f   A    12 模式回归 + 创新证据采集
+_diag_fingers.py                     4562 b919c2e733db37c93e391d29b3732218   B    五指现场诊断：实时打印候选块 solid/ROUGH/asp 与拒因
+_smoke_calib.py                      1307 e5a8162aba35f4c5b54bfdf147e8fd3d   B    校准自测 4 例
+_smoke_dir.py                        3158 8a310fd4f477a3da1d69c086f182a4cb   B    挥手方向自测 13 例
+_smoke_page.py                        728 ace264b0eac80b82ffc943212f4b774e   B    网页自测
+_smoke_swipe.py                      5201 f2e2976d472eb211c9f6f342cb1900a8   B    挥手自测 12 例
+_smoke_track.py                      7024 786cf94db95f84135bb90296c559c5db   B    手势跟踪自测 6 例
+bench_e2e_v6.py                      9400 b8b466249087d681ddff01704d772a1a   B    端到端 bench（v6 口径，对照用）
+bench_fusion_5pass.py                6417 47e0cb8bf2a3a5970dd4403cb2025813   B    融合 vs 多趟：5 趟线性实验（坐实融合倍率）
+diag_fps.py                          4186 3ba550f23bb435756e5ad790323c183e   B    帧率分解 PIPE/PUSH/CLIENT
+diag_read.py                         5423 f1cbc840444629c4abd635f7d7287d3a   B    读回校验排障
+diag_slow.py                         6689 deb75b4a2d055c71f0d842a1e6a180f9   B    640x480 耗时分解
+probe_camera.py                      4689 0b387383001aa10561b73b05042f1245   B    相机探测（确认 MJPG / 分辨率）
+probe_read.py                        6536 e55e974b8141467bb1b5b00dec21f12e   B    读回排障
+repro_5fingers.py                    2767 a6b93df362c3058ea2cf2b13524ac51f   B    5 指复现脚本（软件组 11-01 交付，合成手 1~5 指离线自测）
+sigma.py                            11472 b01447e2da7c749d1a7813a0ad48c094   B    sigma 标定 / 照度扫描（创新 15 分证据）
+BOARD_CHECKLIST_1030.md             14759 ab0a3768ba9320e2debed2fa2ebe4614   C    上板 8 步（现场速查）
+README_上板说明_v82.md                  23510 0798204ecb806a333b3b1cac7d3befce   C    完整说明与排障手册
+----------------------------------------------------------------------------------------------------------------------
+共 29 个文件：A 最小演示集 12 个 / B 排障取证 15 个 / C 文档 2 个

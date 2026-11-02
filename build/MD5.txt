@@ -1,9 +1,9 @@
-e964575439e1bc9603fffda0e3b69f6f *rgb2gray.bit
-0ede3770abdf7fa87d181e674ea9456b *rgb2gray.hwh
-WNS +0.458 ns / WHS +0.017 ns / WPWS +3.750 ns (full project, post-route)
-Failing endpoints: 0 / 0 / 0    Total endpoints: 30128
-Full project util: LUT 8866 (16.67%) / FF 11122 (10.45%) / RAMB18 11 (3.93%) / DSP 29 (13.18%)
-IP only (HLS impl BD wrapper): LUT 8005 (15.05%) / FF 10058 / RAMB18 11 / DSP 29, WNS +0.567
+6b5fd2f907b7214a528530dcca6b418a *rgb2gray.bit
+9b7407a3772b4d2800d00b6d65ba751a *rgb2gray.hwh
+WNS +0.435 ns / WHS +0.020 ns / WPWS +3.750 ns (full project, post-route)
+Failing endpoints: 0 / 0 / 0    Total endpoints: 28415
+Full project util: LUT 8626 (16.21%) / FF 10331 (9.71%) / RAMB18 15 (5.36%) / DSP 32 (14.55%)
+IP only (HLS impl BD wrapper): LUT 7726 (14.52%) / FF 9293 (8.73%), WNS +0.754
 csim 864/864 PASS; cosim 96/96 PASS (Verilog RTL)
-built 2026-10-29 23:22 by vitis/vivado CLI (build_v8.tcl), v8.2 four-stage fused pipeline II=1
-prev v8.1: .bit 4f5ee6932928f4a07b67a6fbbc1086a9 / .hwh 892e23051892e0eb9755b8725277687b
+built 2026-10-30 13:56 by vitis/vivado CLI (build_v8.tcl), v8.2b four-stage fused pipeline II=1
+prev v8.2: .bit e964575439e1bc9603fffda0e3b69f6f / .hwh 0ede3770abdf7fa87d181e674ea9456b
