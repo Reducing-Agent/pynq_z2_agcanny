@@ -146,7 +146,7 @@ DONE_TIMEOUT_S = 5.0
 #
 # 2026-10-30：**删掉最后一个 `/home/xilinx/rgb2gray/rgb2gray.bit` 兜底**。
 #   它和 live_view_raw.py 里那个 v4 兜底是同一类坑 —— 本目录找不到位流时
-#   悄悄跑去别的目录加载，加载的还多半是**旧版本**。现在有 MD5 校验兜着，
+#   改为去别的目录加载，加载的还多半是**旧版本**。现在有 MD5 校验兜着，
 #   正确行为是"找不到就报错"，而不是"找个别的地方凑合"。
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_BIT = (os.environ.get("RGB2GRAY_BIT")
@@ -183,7 +183,7 @@ BIT_MD5_PREFIX = {".bit": "6b5fd2f9", ".hwh": "9b7407a3"}
 #     全工程资源：LUT 8866 (16.67%) / FF 11122 (10.45%) / RAMB18 11 (3.93%)
 #     / DSP 29 (13.18%)。
 #     IP 单独（HLS impl 的 BD wrapper）：LUT 8005 (15.05%) / FF 10058 / RAMB18 11 / DSP 29。
-#     ⚠ HLS csynth 估的是 19327 LUT(36%)，**那是加了 2.7ns 悲观余量的估计值**，
+#     注意：HLS csynth 估的是 19327 LUT(36%)，**那是加了 2.7ns 悲观余量的估计值**，
 #       报告里只能写真板值 8866 (16.67%)。
 #
 #     验证：csim 864/864 PASS；cosim 96/96 PASS（Verilog，RTL PASS）。
@@ -249,7 +249,7 @@ class HardwareProcessor:
       - `mode` 仍然写 0x20 寄存器，硬件内部多了一个 8 选 1 选择器（sparsemux）
       - `_MODE_NAMES` 是从 `filters` 动态取的，换成 8 模式 filters.py 后自动放行 3..7
 
-    ⚠️ 但如果你手上这份驱动是 **1012 软件组原版**，它带着 v3 时代的降分辨率策略：
+    注意：但如果你手上这份驱动是 **1012 软件组原版**，它带着 v3 时代的降分辨率策略：
         mode 1/2 会先 cv2.resize 到 320x240 再算，算完放大回来 —— 画质直接砍一半。
         那个补丁的前提（v3 IP 满分辨率 Sobel 要 108 ms）在 v4 行缓存重构后已经不成立
         （实测 3.78 ms），必须删掉。v5 交付包这份是删干净的版本。
@@ -704,7 +704,7 @@ def smoke_test():
 
     # v6 布局自检：灰度必须走 cv2.cvtColor，且行优先连续。
     #
-    # ⚠️ 口径变更（重要）：v5 在 PL 里用 (77R+150G+29B)>>8，是**向下取整**；
+    # 注意：口径变更：v5 在 PL 里用 (77R+150G+29B)>>8，是**向下取整**；
     #    cv2.cvtColor 用浮点加权后**四舍五入**。两者最多差 1 个灰度级。
     #    v6 起灰度化统一到 cv2.cvtColor（ARM NEON，且是报告里的标准口径），
     #    因此参考实现 filters_v6.py 也必须切成 cvtColor，否则对拍会差 1。

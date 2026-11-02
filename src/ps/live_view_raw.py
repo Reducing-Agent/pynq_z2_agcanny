@@ -1375,7 +1375,7 @@ def main():
     # 目录的位流）。这种"硬件没坏、只是加载错了文件"的坑极难从画面上反推。
     #
     # 2026-10-30：**删掉那个 v4 兜底**。hw_driver 现在有 MD5 校验，
-    # 唯一的后果是"宁可报错也不要悄悄跑错版本" —— 与其静默加载旧位流，
+    # 原则是"宁可报错也不要加载错误版本" —— 与其加载旧位流，
     # 不如让 FileNotFoundError 直接把问题摆到脸上。
     _here = os.path.dirname(os.path.abspath(__file__))
     _default_bit = os.path.join(_here, "rgb2gray.bit")

@@ -20,14 +20,14 @@ from collections import Counter
 # 2026-11-01 改动（软件侧）
 # ------------------------
 # 原来 `update()` 硬写 `self.mode = fingers - 1`，手指最多只够到 mode 2，
-# 而 v8.2b 最有价值的三个抽头 CANNY(10) / NMS(11) / GAUSS5(9) 用手指根本选不到。
+# 而 v8.2b 的三个融合抽头 CANNY(10) / NMS(11) / GAUSS5(9) 用手指选不到。
 #
 # 改成查表：`FINGER_MODE_MAP` 决定"几根手指 -> 哪个模式"。
 # 分配依据（不是随手排的）：3 指识别最稳（实测 98.3%），
 # 所以把最主打的 CANNY 放在 3 指；5 指就算修完 bug 也是最不稳的一类，
 # 放 GAUSS5 这种锦上添花的算子，误触了也不难看。
 #
-# ⚠️ `update()` 里那句 `m >= self.n_modes` 不能删：
+# 注意：`update()` 里那句 `m >= self.n_modes` 不能删：
 #    __init__ 默认 n_modes=3（为兼容 test_accuracy.py 等老脚本），
 #    老代码里那句 `or self.n_modes < 3` 原本就是干这个的。
 #    直接查表写出 mode=10 而 n_modes 还是 3，就会把越界模式号写进去。

@@ -49,18 +49,18 @@
 #
 文件                                     字节 MD5(32位)                           档    说明
 ----------------------------------------------------------------------------------------------------------------------
-check_kit.py                         8852 c3c838bce7770b1372912d6d7789e71d   A    上板第一件事：验位流 MD5
-control.py                           4940 3c18be58e46e07869b3a86d12ecf443f   A    网页控制接口
+check_kit.py                         8843 537014f33023938d2cff9efe4910fa3d   A    上板第一件事：验位流 MD5
+control.py                           4930 f43c32d9bd6fd6a77ff5607f69aca06c   A    网页控制接口
 filters.py                          16666 8ec4909b71b2ed4dbe4006d701d2e9b1   A    黄金参考，对拍与 SIM 都靠它
 gesture.py                          38327 03975657e675a850fe81839a24dc25c7   A    手势识别（严格版，勿用软件组那版覆盖）
-hw_driver.py                        39030 76599ed746983b492e1c28e4ec889425   A    PL 驱动（寄存器/cache/MD5/AGC/sigma 全在这）
-live_view_raw.py                    80953 039298cfc6c0fbaf607c28a45867473d   A    四线程网页演示主程序
+hw_driver.py                        39024 a89ed479e1c91074ae714fc737a12a43   A    PL 驱动（寄存器/cache/MD5/AGC/sigma 全在这）
+live_view_raw.py                    80938 57ef1e0b661bd3b2f3deb3ce58676584   A    四线程网页演示主程序
 rgb2gray.bit                      4045771 6b5fd2f907b7214a528530dcca6b418a   A    v8.2b 位流（burst 修复版，勿用旧 v8.2 e9645754）
 rgb2gray.hwh                       266281 9b7407a3772b4d2800d00b6d65ba751a   A    Overlay 描述文件，必须与 .bit 同名
 session.py                          10479 0a6aa6812f881c95d33c80a3a512f7b2   A    会话状态机
 start_web.sh                         1236 3ff2e4142d37dfa3a83475f262ab6b19   A    一键起网页演示（内部带 MIN_ROUGH=1.07，别手工敲漏）
 swipe.py                             5916 2ee08c6024acae25bb2eeafb2933eb5a   A    挥手判据
-validate_v8.py                      41042 859cb7668e8ec19d25f84176d48a8b88   A    12 模式回归 + 创新证据采集
+validate_v8.py                      41042 01f0ff4c2d7ed94df1eadc69e40eea8f   A    12 模式回归 + 创新证据采集
 _diag_fingers.py                     4562 b919c2e733db37c93e391d29b3732218   B    五指现场诊断：实时打印候选块 solid/ROUGH/asp 与拒因
 _smoke_calib.py                      1307 e5a8162aba35f4c5b54bfdf147e8fd3d   B    校准自测 4 例
 _smoke_dir.py                        3158 8a310fd4f477a3da1d69c086f182a4cb   B    挥手方向自测 13 例
@@ -68,15 +68,15 @@ _smoke_page.py                        728 ace264b0eac80b82ffc943212f4b774e   B  
 _smoke_swipe.py                      5201 f2e2976d472eb211c9f6f342cb1900a8   B    挥手自测 12 例
 _smoke_track.py                      7024 786cf94db95f84135bb90296c559c5db   B    手势跟踪自测 6 例
 bench_e2e_v6.py                      9400 b8b466249087d681ddff01704d772a1a   B    端到端 bench（v6 口径，对照用）
-bench_fusion_5pass.py                6412 052d3a00284603af8a136135baddc8ee   B    融合 vs 多趟：5 趟线性实验（坐实融合倍率）
+bench_fusion_5pass.py                6417 47e0cb8bf2a3a5970dd4403cb2025813   B    融合 vs 多趟：5 趟线性实验（坐实融合倍率）
 diag_fps.py                          4186 3ba550f23bb435756e5ad790323c183e   B    帧率分解 PIPE/PUSH/CLIENT
 diag_read.py                         5423 f1cbc840444629c4abd635f7d7287d3a   B    读回校验排障
-diag_slow.py                         6698 7e2c828f148deeb1b5caa1cdccbf44aa   B    640x480 耗时分解
+diag_slow.py                         6689 deb75b4a2d055c71f0d842a1e6a180f9   B    640x480 耗时分解
 probe_camera.py                      4689 0b387383001aa10561b73b05042f1245   B    相机探测（确认 MJPG / 分辨率）
 probe_read.py                        6536 e55e974b8141467bb1b5b00dec21f12e   B    读回排障
 repro_5fingers.py                    2767 a6b93df362c3058ea2cf2b13524ac51f   B    5 指复现脚本（软件组 11-01 交付，合成手 1~5 指离线自测）
-sigma.py                            11488 552a74c2893384c73cfe7aaaa278fb9a   B    sigma 标定 / 照度扫描（创新 15 分证据）
-BOARD_CHECKLIST_1030.md             14791 dd2a3de1422937167a53e8b3f70464c4   C    上板 8 步（现场速查）
-README_上板说明_v82.md                  23495 9805ea0d4fbb21e17a864c8404db0f31   C    完整说明与排障手册
+sigma.py                            11472 b01447e2da7c749d1a7813a0ad48c094   B    sigma 标定 / 照度扫描（创新 15 分证据）
+BOARD_CHECKLIST_1030.md             14759 ab0a3768ba9320e2debed2fa2ebe4614   C    上板 8 步（现场速查）
+README_上板说明_v82.md                  23510 0798204ecb806a333b3b1cac7d3befce   C    完整说明与排障手册
 ----------------------------------------------------------------------------------------------------------------------
 共 29 个文件：A 最小演示集 12 个 / B 排障取证 15 个 / C 文档 2 个

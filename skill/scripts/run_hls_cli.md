@@ -44,7 +44,7 @@ $VITIS = 'D:\AMDDesignTools\2026.1\Vitis\bin'
 
 ---
 
-## ⚠️ 四个必踩的坑
+## 四个常见错误
 
 ### 1. 必须用 `bin\*.bat`，不能用 `bin\unwrapped\win64.o\*.exe`
 

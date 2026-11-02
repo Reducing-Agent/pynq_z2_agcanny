@@ -130,7 +130,7 @@ def ground_truth(frames):
 # 2026-10-30：原来这里写 K_HIGH=3.0 / K_LOW=0.4，和 hw_driver 的
 #   CANNY_K_HI(7.56) / CANNY_K_LO(0.5) **不是同一套数** —— σ=8 时
 #   一个给 24/9.6，一个给 128/64，报告里会出现两个互相矛盾的"σ→阈值"规则。
-#   现在统一从 hw_driver 取，hw_driver 是唯一真相源。
+#   现在统一从 hw_driver 取，只有一处定义。
 try:
     from hw_driver import CANNY_K_HI as K_HIGH, CANNY_K_LO as K_LOW
 except Exception:                      # PC 上没带 hw_driver 时退回同值常量
@@ -263,7 +263,7 @@ def main():
         for r in rows:
             print("  %-6d %-10.2f %-10.3f %-10.1f %-10.1f" % r)
         print("\n  报告要讲的：**mu 掉下去时 sigma 涨上来，而阈值跟着 sigma 走，")
-        print("  不是跟着人拍脑袋的常数走。** 固定阈值方案在这一段会崩。")
+        print("  不是跟着人设的常数走。** 固定阈值方案在这一段会崩。")
 
     cap.release()
     print("\n" + "=" * 72)

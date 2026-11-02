@@ -23,7 +23,7 @@
 
 ---
 
-## ⚡ 传完立刻跑（速查 6 步，不想看文档就照抄这段）
+## 传完立刻跑（速查 6 步，不想看文档就照抄这段）
 
 下面每一段都可以整块复制粘贴。**全程不加 sudo**（原因见 §3）。
 
@@ -108,7 +108,7 @@ python3 live_view_raw.py --hw --display web
 
 笔记本浏览器开 `http://192.168.2.99:8080/`。
 
-> ⚠️ **只能 `--display web`**。这份 overlay 里**没有 HDMI**（`.hwh` 里 hdmi/vdma/vtc
+> **只能 `--display web`**。这份 overlay 里**没有 HDMI**（`.hwh` 里 hdmi/vdma/vtc
 > 各 0 次），`--display hdmi|both` 启动即崩。
 
 ---
@@ -161,7 +161,7 @@ scp "C:/Users/还原剂/Desktop/2026大二上FPGA/上板上传_1020/rgb2gray_v82
     xilinx@192.168.2.99:/home/xilinx/jupyter_notebooks/rgb2gray_v82/
 ```
 
-> ⚠️ 但这个 `{a,b,c}` 花括号展开 **PowerShell 不支持**，要在 **Git Bash** 里跑；
+> 注意：这个 `{a,b,c}` 花括号展开 **PowerShell 不支持**，要在 **Git Bash** 里跑；
 > PowerShell 请逐个文件写完整路径，或者直接用上面的整目录 `scp -r`。
 
 ### 方式 B：Jupyter Lab 上传
@@ -169,19 +169,19 @@ scp "C:/Users/还原剂/Desktop/2026大二上FPGA/上板上传_1020/rgb2gray_v82
 浏览器打开 `http://192.168.2.99:9090`，进 `jupyter_notebooks/` 下
 **新建 `rgb2gray_v82` 目录**，再全选拖进去。
 
-> ⚠️ **Jupyter 上传同名文件会自动改名**成 `rgb2gray (1).bit`——
+> **Jupyter 上传同名文件会自动改名**成 `rgb2gray (1).bit`——
 > 这是历史上载错位流的直接原因之一。上传完**必须**确认文件名没有空格和 `(1)`。
 
-> ⚠️ **`.bit` 和 `.hwh` 必须同名**（`rgb2gray.bit` + `rgb2gray.hwh`），
+> **`.bit` 和 `.hwh` 必须同名**（`rgb2gray.bit` + `rgb2gray.hwh`），
 > PYNQ 的 Overlay 是靠文件名配对找 `.hwh` 的，名字对不上会加载失败。
 
-#### ❓ 为什么以前是 `rgb2gray_v5`？目录名和版本到底什么关系
+#### 为什么以前是 `rgb2gray_v5`？目录名和版本到底什么关系
 
 **目录名 ≠ 位流版本。** `rgb2gray_v5` 是 10-19 那天建的目录，建完之后每次升级
 都在原地覆盖文件，名字一直没改 —— 所以它里面跑的早就不是 v5 了。这是纯粹的
 历史遗留，也是"为什么是 v5"这个疑问的来源。
 
-真正的版本在**位流文件里**，而位流文件名就叫 `rgb2gray.bit`，**不带版本号**：
+版本信息在**位流文件里**，而位流文件名就叫 `rgb2gray.bit`，**不带版本号**：
 
 - `hw_driver.py` 一律取**脚本同目录**的那份 `rgb2gray.bit`（不再有任何绝对路径兜底）
 - 版本靠 **MD5** 判定：`.bit` 必须是 `e9645754…`，`.hwh` 必须是 `0ede3770…`
@@ -194,7 +194,7 @@ scp "C:/Users/还原剂/Desktop/2026大二上FPGA/上板上传_1020/rgb2gray_v82
 
 > 10-30 顺手清掉的同类隐患：`live_view_raw.py` 里曾兜底到
 > `rgb2gray_v4/rgb2gray.bit`、`hw_driver.py` 里曾兜底到 `/home/xilinx/rgb2gray/`。
-> 本目录找不到位流时它们会**悄悄跑去加载旧版本**，画面表现为"滤镜全变成浮雕"。
+> 本目录找不到位流时它们会**改为加载旧版本**，画面表现为"滤镜全变成浮雕"。
 > 现在全部删掉，找不到就直接报错 —— 宁可报错，不要静默跑错版本。
 
 ---
@@ -207,7 +207,7 @@ source /usr/local/share/pynq-venv/bin/activate
 cd /home/xilinx/jupyter_notebooks/rgb2gray_v82
 ```
 
-> ⚠️ 不加 sudo。加了会 env_reset → `Device.devices=={}` → No Devices Found。
+> 注意：不加 sudo。加了会 env_reset → `Device.devices=={}` → No Devices Found。
 > 迷惑点：纯 numpy 脚本全 PASS，一 import pynq 就崩。
 
 ---
@@ -295,7 +295,7 @@ python3 -u validate_v8.py --sim     # 全程软件参考；耗时数字无意义
 阶段 6(4) 那张工作点扫描表就是这次修正的依据，**拍照存证**。
 
 同一天还统一了 `sigma.py` 的 σ→阈值系数（原来 3.0σ，和驱动不是一套数），
-现在从 `hw_driver` 取，只有一个真相源。
+现在统一从 `hw_driver` 取，只有一处定义。
 
 ---
 
@@ -373,5 +373,5 @@ python3 -u live_view_raw.py --display web
 
 `thresh = (HIGH << 8) | LOW`，默认 `0x3C1E`（60/30）。ARM 可每帧按实测 σ 改写（默认关）。
 
-⚠️ **v8 起偏移整体后移一格**（σ 挤占 0x10）。旧驱动配新位流：width 写进只读的 σ
+注意：**v8 起偏移整体后移一格**（σ 挤占 0x10）。旧驱动配新位流：width 写进只读的 σ
 → 静默无效，height 写进 width → "画面只对上半部分生效"。**极难排查**。

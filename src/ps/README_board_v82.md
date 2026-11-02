@@ -67,7 +67,7 @@ cd /home/xilinx/jupyter_notebooks/rgb2gray_v82
 #    只有当你用 root 账号拷进去（比如先 scp 到 /root 再 mv）时才要改回来。
 #    用 scp xilinx@192.168.2.99 传的文件属主本来就是 xilinx，跳过即可。
 #
-#    ⚠️ 这里的 sudo 是**给 shell 命令提权**，和下面跑 python 完全是两回事。
+#    注意：这里的 sudo 是**给 shell 命令提权**，和下面跑 python 完全是两回事。
 #       **跑 python 一律不加 sudo**：sudo 会 env_reset 丢掉 pynq-venv
 #       → Device.devices == {} → No Devices Found。别把这两件事混了。
 # sudo chown -R xilinx:xilinx /home/xilinx/jupyter_notebooks/rgb2gray_v82
@@ -98,8 +98,8 @@ python3 _smoke_track.py && python3 _smoke_calib.py
 **③ `validate_v7.py`**：
 
 ```
-阶段 0：ARM 基线 <-> 黄金参考：7 图 x 8 模式 x 3 增益 全部相等 ✅
-阶段 1：全部 PASS ✅ (120 组)        ← v6 是 40 组，v7 翻三倍
+阶段 0：ARM 基线 <-> 黄金参考：7 图 x 8 模式 x 3 增益 全部相等（通过）
+阶段 1：全部 PASS（120 组）        ← v6 是 40 组，v7 翻三倍
 阶段 2：8 个模式 ≈ 3.75~3.78 ms      ← 增益锁 256，与 v6 相同
 ```
 
@@ -126,7 +126,7 @@ v6 时 pack 是 **4.35 ms**，v7 涨到 **78.8 ms**（18 倍）→ 帧率从 128
 `_decide_gain()` 里用了 `self._in_buf[:n].mean()` 算 AGC 的 μ。
 **在 PYNQ 的 cacheable DMA 缓冲上做 numpy reduce，实测 74 ms/帧。**
 
-> ⚠️ 这个坑在 PC 上**完全测不出来** —— 普通 numpy 数组上 `.mean()` 只要 0.16 ms。
+> 注意：这个坑在 PC 上**完全测不出来** —— 普通 numpy 数组上 `.mean()` 只要 0.16 ms。
 > 只有上了板、看了 `pack` 那一项才发现。**以后凡是碰 `_in_buf` / `_out_buf` 的
 > numpy 运算，都必须上板实测。**
 
@@ -255,7 +255,7 @@ PL 有 70 fps 的能力却只跑出 14 fps，**说明卡在采集**。
 "越跑越慢"不存在。** 之前 `diag_read.py` 量到的 24.5 fps 是该脚本的测量伪差
 （3 s 窗口 vs 4 s 窗口 + import 链差异），不代表相机能力。
 
-> ⚠️ `probe_camera.py` 的 29.9/30.0 与 `probe_read.py` 的 30.0 一致，
+> 注意：`probe_camera.py` 的 29.9/30.0 与 `probe_read.py` 的 30.0 一致，
 > 两个脚本终于对上了。之前"probe 偏乐观"的判断作废。
 
 ### 现在的完整账本（每帧）
@@ -506,7 +506,7 @@ python3 -u sigma.py --params                   # σ -> 双阈值表
 2. 照度扫描表：照度掉下去时 `mu↓ / σ↑`，而阈值跟着 σ 走
 3. 参数表：`high = 3.0σ`，`low = 0.4·high`
 
-> ⚠️ C270 输出 MJPEG，压缩伪影不是纯高斯，Immerkær 会有系统性偏差。
+> 注意：C270 输出 MJPEG，压缩伪影不是纯高斯，Immerkær 会有系统性偏差。
 > **偏差本身要测出来并写进报告** —— 这是诚实加分项，不是缺陷。
 
 ### 为什么先做 numpy 版

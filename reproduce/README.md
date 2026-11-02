@@ -74,7 +74,7 @@ grep ADDR_ rgb2gray/hls/impl/ip/.../xrgb2gray_hw.h
 .hwh  9b7407a3772b4d2800d00b6d65ba751a   (266281 B)
 ```
 
-⚠️ **各版本 `.bit` 大小恒为 4045771 B，看大小分不出版本**，只能靠 MD5。
+注意：各版本 `.bit` 大小恒为 4045771 B，看大小分不出版本**，只能靠 MD5。
 重建出来的 MD5 **不一定完全相同**（布局布线有随机性），
 但 `.hwh` 必须字节一致、资源/时序必须落在下表范围内。
 
@@ -131,7 +131,7 @@ python3 -u diag_slow.py      # 640×480 核内耗时
 python3 live_view_raw.py --display web
 ```
 
-> ⚠️ **绝对不能加 `sudo`**：`sudo` 触发 `env_reset` → `Device.devices == {}`
+> **不能加 `sudo`**：`sudo` 触发 `env_reset` → `Device.devices == {}`
 > → `No Devices Found`。迷惑点在于纯 numpy 脚本加了 sudo 照样跑通，
 > 只有 `import pynq` 才崩，很容易误判成"驱动没装好"。
 

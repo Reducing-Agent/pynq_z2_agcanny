@@ -5,7 +5,7 @@
     python gen_md5sums.py <交付包目录>
 
 为什么是从 FILES.txt 生成、而不是重新扫描目录：
-  FILES.txt 是**唯一真相源**（由 _gen_files_txt.py 生成，随版本走）。
+  FILES.txt 是**唯一依据**（由 _gen_files_txt.py 生成，随版本走）。
   重新扫描目录会把 __pycache__、临时文件一起扫进去，
   而且**永远校验不出"少了一个文件"**——少一个就少一行，照样全绿。
   从清单出发才能发现缺失。

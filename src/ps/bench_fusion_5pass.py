@@ -29,7 +29,7 @@ Canny 链共 5 个算子（5×5 高斯 → Sobel → 方向量化 → NMS → �
     cd rgb2gray_v82
     python3 -u bench_fusion_5pass.py
 
-⚠ 一律**不要加 sudo**：env_reset 会让 Device.devices 变空 → No Devices Found。
+注意：一律**不要加 sudo**：env_reset 会让 Device.devices 变空 → No Devices Found。
    迷惑点在于"纯 numpy 的代码全 PASS，一 import pynq 就崩"，很容易误判成驱动坏了。
 """
 

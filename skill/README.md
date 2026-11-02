@@ -21,7 +21,7 @@
 | 综合报告全绿但性能不对 | [`prompts/02_report_bottleneck.md`](prompts/02_report_bottleneck.md) |
 | 要造黄金参考做对拍 | [`prompts/03_golden_reference.md`](prompts/03_golden_reference.md) |
 
-## 一句话结论（最值钱的三条）
+## 三条要点
 
 1. **吞吐被访存定住，不被运算定住** —— 先做带宽账，再谈并行度。
 2. **m_axi 上的写要无条件、地址连续** —— 一个 `if` 就能把 burst 打没，慢 6.7 倍。
@@ -61,8 +61,8 @@ skill/
 
 ## 适用范围与失效条件
 
-- ✅ **适用**：PYNQ-Z2 / Zynq-7000 系列，Vitis HLS 导出 IP + Vivado Block Design，
+- 适用：PYNQ-Z2 / Zynq-7000 系列，Vitis HLS 导出 IP + Vivado Block Design，
   算法是**流式**的（逐像素 / 小窗口滑窗）
-- ⚠️ **需改写**：Zynq UltraScale+ / Versal（AXI4，burst 上限不同）、纯 RTL 流程
+- 需改写：Zynq UltraScale+ / Versal（AXI4，burst 上限不同）、纯 RTL 流程
   —— 主要是 §6 那张硬约束速查表的数字要换
-- ❌ **不适用**：需要大矩阵随机访问、必须把中间结果存回片外 DDR 的算法
+- 不适用：需要大矩阵随机访问、必须把中间结果存回片外 DDR 的算法

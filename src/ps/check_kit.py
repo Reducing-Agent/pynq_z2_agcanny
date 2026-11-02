@@ -16,7 +16,7 @@ live_view_raw.py / sigma.py 四个文件，却漏了更新这里 —— 上板�
 更危险的是它当时期望的位流是 v8.1（4f5ee693），谁要是照着"修正"
 就会把 v8.2 位流换成 v8.1。
 
-现在 FILES.txt 是唯一真相源（由 `_gen_files_txt.py` 生成），
+现在以 FILES.txt 为唯一依据（由 `_gen_files_txt.py` 生成），
 本脚本直接读它。以后改任何文件 → 重跑一次生成脚本 → 这里自动跟上。
 FILES.txt 缺失时才回退到下面的内置表（兜底用，可能过期）。
 """
@@ -68,7 +68,7 @@ _NAME_RE = re.compile(r"^[\w.-]+\.[A-Za-z0-9]+$")
 
 
 def load_expect_from_manifest():
-    """从 FILES.txt 读期望值（唯一真相源）。
+    """从 FILES.txt 读期望值（唯一依据）。
 
     行格式：`文件名  字节  MD5(32位)  档  说明`
     三重过滤，避免把非文件行当成条目：
@@ -102,7 +102,7 @@ def load_expect_from_manifest():
 
 manifest = load_expect_from_manifest()
 EXPECT = manifest if manifest else FALLBACK
-src = "FILES.txt（唯一真相源）" if manifest else "内置兜底表（FILES.txt 缺失，可能过期）"
+src = "FILES.txt（唯一依据）" if manifest else "内置兜底表（FILES.txt 缺失，可能过期）"
 
 print("检查目录:", HERE)
 print("期望值来源:", src)
@@ -143,7 +143,7 @@ else:
     # 2026-10-31：原来这里把版本号和 MD5 写死成 "v8.2，e9645754…"，
     #   换了位流后判定仍然是 OK（判定走 BIT_EXPECT，是对的），
     #   但这行**打印出来的版本是错的**，看的人会以为载的还是旧位流。
-    #   改成从 BIT_EXPECT 动态取，杜绝这类"判定对、文案错"的鬼故事。
+    #   改成从 BIT_EXPECT 动态取，避免这类"判定对、文案错"的情况。
     print("位流版本：OK（.bit %s… / .hwh %s…）"
           % (BIT_EXPECT["rgb2gray.bit"], BIT_EXPECT["rgb2gray.hwh"]))
 
