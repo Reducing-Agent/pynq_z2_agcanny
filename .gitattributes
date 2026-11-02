@@ -1,0 +1,6 @@
+*.sh text eol=lf
+*.py text eol=lf
+*.tcl text eol=lf
+*.bit binary
+*.hwh binary
+*.png binary
