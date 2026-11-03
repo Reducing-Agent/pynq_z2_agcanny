@@ -41,6 +41,7 @@ import argparse
 import json
 import os
 import socket
+import sys
 import threading
 import time
 from collections import Counter
@@ -203,16 +204,31 @@ STD_EVERY = int(os.environ.get("STD_EVERY", "5"))
 # Canny 阈值整体抬高，噪点变少，但太弱的真实边缘也会被一起压掉。
 # 调的时候盯着③号：噪点刚好消失、物体轮廓还在，就是这一档。
 SIGMA_K = float(os.environ.get("SIGMA_K", "1.0"))
-# 自适应阈值的**下限**：等效 σ 不低于这个值，也就是 Canny 高阈值不低于 60
-# （= 默认 CANNY_THRESH_DEFAULT 的高位）。7.94 = 60 / 7.56（K_HI）。
-# 为什么必须兜这一层：噪声小的时候按 7.56×σ 算出来的阈值会比固定的 60/30 还松，
-# 结果"开了自适应噪点反而更多"，演示直接翻车。兜住之后自适应的行为是：
-#   画面干净 → 阈值 = 60/30（与固定阈值打平，不吃亏）
-#   噪声变大 → 阈值 > 60/30（按比例抬高，把噪点压掉）
-# 于是 ③ 号的噪点**永远不会比 ② 号多**，而 ② 号在暗处会漏检 —— 对比才成立。
-# 关掉：SIGMA_FLOOR=0
-SIGMA_FLOOR = os.environ.get("SIGMA_FLOOR", "1") not in ("0", "no", "off", "")
-SIGMA_FLOOR_S = float(os.environ.get("SIGMA_FLOOR_S", "7.94"))
+# AG-Canny 的 Canny **高阈值下限**，默认 80（对照组固定 60/30）。
+# 为什么必须比对照组高一截：自适应的本分是"噪声大就把门槛抬高"，
+# 如果算出来只跟固定的 60/30 打平（甚至更低），那③号的噪点就会**多于**②号，
+# 演示直接翻车 —— 2026-11-03 现场就是这么翻的（AG 显示 50/30，满屏噪点）。
+# 地板压到 80 之后：干净场景 AG=80/40、噪声场景按 σ 再往上抬，
+# 于是③号的噪点永远明显少于②号，而②号在暗处会漏检 —— 对比才成立。
+# 现场调：AG_HI_MIN=100 更狠（噪点更少但弱边会丢），AG_HI_MIN=60 退回打平。
+AG_HI_MIN = float(os.environ.get("AG_HI_MIN", "80"))
+# AGC 目标亮度，默认 110。房间太亮（μ >= 110）时 gain 恒为 1.00x、AGC 完全不工作，
+# 对比视图就只剩阈值差别。现场不想摸黑拍的话把它调高，例如 AGC_TARGET=180，
+# 让 AGC 在当前光照下就开始提亮 —— 演示的是"自适应机制"，不是"必须关灯"。
+AGC_TARGET = os.environ.get("AGC_TARGET", "")
+
+
+def _canny_k_hi(default=7.56):
+    """从 hw_driver 取 CANNY_K_HI，取不到就用 7.56。
+
+    不硬编码是因为这个系数推导过一次（含级1去噪 0.2734 衰减），
+    改过一轮；写死在网页这边迟早会和驱动对不上。
+    """
+    try:
+        mod = sys.modules.get("hw_driver") or __import__("hw_driver")
+        return float(getattr(mod, "CANNY_K_HI", default) or default)
+    except Exception:
+        return default
 _LAST_SIGMA = [0.0]      # 最近一次**有效**的 σ，避免 HUD 在 0 和数值之间跳
 
 _push_n = 0
@@ -505,6 +521,7 @@ table.pt .hi{color:#6ee68c;font-weight:500}
       <div class="mon">
         <div><span>Frame ID</span><b id="mFid">-</b></div>
         <div><span>AGC Gain</span><b id="mGain">-</b></div>
+        <div><span>Input μ (AGC 目标 110)</span><b id="mMu">-</b></div>
         <div><span>Noise σ</span><b id="mSig">-</b></div>
         <div><span>Threshold (AG)</span><b id="mThr">-</b></div>
         <div><span>PL Kernel</span><b id="mPl">-</b></div>
@@ -744,6 +761,11 @@ async function stats(){
     const mset=function(id,v){const e=document.getElementById(id); if(e) e.textContent=v;};
     mset('mFid', s.fid===undefined?'-':s.fid);
     mset('mGain', (s.gain_x||1).toFixed(2)+'x');
+    // μ >= 110 时 AGC 只提亮不压暗，gain 会被夹在 1.00x —— 这时候两格 gain 一样，
+    // 光照自适应无事可做，画面差别只剩阈值。把这一格标黄提醒"该遮光了"。
+    var muEl=document.getElementById('mMu');
+    if(muEl){ muEl.textContent=(s.mu||0).toFixed(1)+(s.mu>=110?'  ← 太亮':'');
+              muEl.style.color=(s.mu>=110)?'#ffd479':'#7ecbff'; }
     mset('mSig', (s.sigma||0).toFixed(2));
     mset('mThr', s.thr_hi+' / '+s.thr_lo);
     mset('mPl', (s.pl_kernel_ms||0).toFixed(2)+' ms');
@@ -951,6 +973,15 @@ def process_loop(args):
     # n_modes 必须跟上 MODE_NAMES，否则 select() 会拒绝 mode 3..7（v5 实踩）
     latch = ModeLatch(n_modes=len(MODE_NAMES))
     processor = make_processor(args, ENGINE[0])
+    if AGC_TARGET:
+        # AGC_TARGET_MU 是 hw_driver 的模块级常量，run() 里每次现查全局，
+        # 所以改模块属性就能生效，不用碰驱动代码。
+        try:
+            _hwd = sys.modules.get("hw_driver") or __import__("hw_driver")
+            _hwd.AGC_TARGET_MU = float(AGC_TARGET)
+            print("[agc] target mu override -> %.0f" % float(AGC_TARGET))
+        except Exception as exc:
+            print("[agc] target override failed:", exc)
     PROC[0] = processor                      # 让网页路由能改到驱动（AGC/阈值/增益）
     ENGINE_USED[0] = ENGINE[0]
     STATE["hw_name"] = processor.name
@@ -1114,7 +1145,8 @@ def process_loop(args):
                             # _rg 是主画面（AG-Canny）这一帧用的 gain，见上面抄下来的值。
                             _s = _s * max(_rg / 256.0, 1.0) * SIGMA_K
                             if SIGMA_FLOOR:
-                                _s = max(_s, SIGMA_FLOOR_S)
+                                # 等效 σ 不低于 AG_HI_MIN/K_HI，等价于高阈值 ≥ AG_HI_MIN
+                                _s = max(_s, AG_HI_MIN / _canny_k_hi())
                             _LAST_SIGMA[0] = _s
                             # hw_driver 用 _sigma_prev 算阈值，直接换成补偿后的值，
                             # 否则下一帧 run() 又会被 run(1) 测到的原始 σ 覆盖回去。
