@@ -165,6 +165,9 @@ STD_INTERVAL = float(os.environ.get("STD_INTERVAL", "0.12"))
 # 直接设 CMPSTD=0 可以整块关掉 ② 号对照图的额外计算（排障用：关掉后画面若恢复，
 # 就证明瓶颈在对照图这一遍 PL，而不是主链）。
 CMPSTD_ON = os.environ.get("CMPSTD", "1") not in ("0", "no", "off", "")
+# CMP_FILL=1：四格铺满整屏（object-fit:cover，4:3 上下各裁约 12%）。
+# 默认关：保留完整画面，格子按 4:3 居中，只是左右留一点背景色。
+CMP_FILL = os.environ.get("CMP_FILL", "0") not in ("0", "no", "off", "")
 _LAST_STD_T = [0.0]
 _CMPSTD_FAILS = [0]
 # ②号窗格（普通 Canny）每几帧才重算一次。
@@ -338,30 +341,38 @@ a.on{background:#2f4a38;color:#c9f5d3;border-color:#6ee68c}
    .grid 用 flex:1 吃掉剩余全部高度，两行两列各 1fr ——
    于是四格尺寸只由视口决定，与图片内容无关，天然等大。 */
 body.cmp{overflow:hidden;height:100vh;display:flex;flex-direction:column}
-body.cmp .bar{flex:0 0 auto;font-size:11.5px;padding:4px 10px;gap:7px}
-body.cmp .bar a{padding:1px 7px}
+/* 录屏/演示时底部那 5~6 行状态文字（约 85 px）和标题都是纯装饰 ——
+   PIPE fps / gain / σ / 阈值 ④号面板里已经有了，全砍掉把高度还给画面。
+   顶栏必须留着：THRESH AUTO 和 AGC 对比 OFF 两个按钮在上面。 */
+body.cmp .hud,body.cmp .title{display:none}
+body.cmp .bar{flex:0 0 auto;font-size:11px;padding:2px 8px;gap:5px}
+body.cmp .bar a{padding:0 6px}
 body.cmp .hint{display:none}
-body.cmp .wrap{flex:1 1 auto;min-height:0;max-width:none;padding:4px 10px 6px;
+body.cmp .wrap{flex:1 1 auto;min-height:0;max-width:none;padding:4px 8px 4px;
                display:flex;flex-direction:column}
-body.cmp .title{flex:0 0 auto;font-size:14px;padding:3px 0 5px}
 /* minmax(0, 1fr) 而不是 1fr：1fr 展开是 minmax(auto, 1fr)，最小值取
    min-content，而 <canvas height="480"> 和 <img> 都有固有高度，会把所在那一行
    顶高 —— 实测上排 270 px / 下排 300 px 就是这么来的。
    写成 minmax(0, 1fr) 才真正等分，四格边框严格一样大。 */
 body.cmp .grid{display:grid;gap:8px;flex:1 1 auto;min-height:0;
                grid-template-columns:repeat(2,minmax(0,1fr));
-               grid-template-rows:repeat(2,minmax(0,1fr))}
-body.cmp .pane{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
-/* width/height 都给 100%，高度不再交给 height:auto（那样又回到按固有尺寸算）。
-   元素框四格完全一致，object-fit:contain 再把 4:3 的画面letterbox 进去，
-   于是①②③ 三格的**显示尺寸**也完全一致。 */
+               grid-template-rows:repeat(2,minmax(0,1fr));
+               justify-items:center;align-items:stretch}
+/* 格子本身做成 4:3 并居中：摄像头就是 640x480，格子按 4:3 之后画面正好铺满，
+   左右不会留出黑边（原来格子被拉成 16:9，contain 之后左右各空一大条）。
+   上下两排仍然等大，因为宽度是从同一个行高推出来的。 */
+body.cmp .pane{display:flex;flex-direction:column;min-width:0;min-height:0;
+               overflow:hidden;height:100%;aspect-ratio:4/3}
 body.cmp .pane img,body.cmp .pane canvas{flex:1 1 0;min-height:0;min-width:0;
      width:100%;height:100%;object-fit:contain}
-body.cmp .mon{flex:1 1 0;min-height:0;overflow:auto}
+/* 真要"糊满整屏"就用 CMP_FILL=1 启动：改成 cover，画面铺满格子，
+   代价是 4:3 的上下各裁掉约 12%（两格对称裁，不影响左右对比）。 */
+body.cmp.fill .pane{aspect-ratio:auto;width:100%}
+body.cmp.fill .pane img,body.cmp.fill .pane canvas{object-fit:cover}
+body.cmp .mon{flex:1 1 0;min-height:0;overflow:auto;
+              display:flex;flex-direction:column;justify-content:center}
 body.cmp .cmpane{display:block}
 body.cmp .cap{font-size:11.5px;padding:0 0 3px 2px}
-body.cmp .hud{flex:0 0 auto;font-size:11.5px;line-height:1.4;padding:4px 2px 0}
-body.cmp .perf,body.cmp .pipe{display:none}
 .cap{font-size:12.5px;padding:0 0 5px 2px;color:#9a968e}
 .cap.pl{color:#6ee68c;font-weight:500}
 img,canvas{width:100%;display:block;background:#000;border-radius:6px}
@@ -825,9 +836,10 @@ def render_page():
     # 占位符名字必须和模板里写的一模一样 —— 上一版这里写的是 SRC_A/SRC_B，
     # 模板里却是 SRC_STD，替换不到，结果右上角永远没有画面。
     _std = 'src="/cmpstd"' if CMP_ON[0] else ""
+    _cls = "" if not CMP_ON[0] else ("cmp fill" if CMP_FILL else "cmp")
     return (PAGE_TEMPLATE
             .replace("<!--MODES-->", build_mode_buttons())
-            .replace("<!--CMPCLS-->", "cmp" if CMP_ON[0] else "")
+            .replace("<!--CMPCLS-->", _cls)
             .replace("<!--SRC_STD-->", _std)
             .replace("<!--TITLE-->",
                      "AG-CANNY | REAL-TIME DUAL-PATH COMPARISON" if CMP_ON[0]
