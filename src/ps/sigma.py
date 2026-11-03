@@ -229,7 +229,7 @@ def main():
                                           "达标 (<15%)" if err < 0.15 else "未达标"))
         print("\n  逐帧 sigma_est：" + " ".join("%.2f" % e for e in ests))
         print("\n  注意：C270 输出 MJPEG，压缩伪影不是纯高斯噪声，")
-        print("  Immerkaer 会有系统性偏差 —— **偏差本身要写进报告**，这是诚实加分项。")
+        print("  Immerkaer 会有系统性偏差 —— **偏差本身要写进报告**，如实记录即可。")
         # 顺手存一张，报告里用
         cv2.imwrite("sigma_calib_frame.png", frames[-1])
         print("  已存 sigma_calib_frame.png")

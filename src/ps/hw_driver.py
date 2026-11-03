@@ -456,7 +456,7 @@ class HardwareProcessor:
 
         # ---- Canny 阈值：由**上一帧**实测 σ 决定（v8.1）----
         #   σ 要整帧累加完才有值，所以只能喂给下一帧 —— 与 AGC
-        #   「上一帧统计 -> 这一帧生效」是同一套闭环套路。
+        #   「上一帧统计 -> 这一帧生效」是同一套做法。
         self._update_canny_thresh()
 
         # cache 维护（2026-10-20 补，吸收自软件组 hardware_driver.py）

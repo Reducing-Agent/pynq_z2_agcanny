@@ -391,7 +391,7 @@ def main():
     if mid != 77:
         extra += 1
 
-    # 附加 4：v8.2 的关键卖点 —— CANNY 必须自带去噪（对比 v8.1 的无高斯版本）
+    # 附加 4：v8.2 的关键要求 —— CANNY 必须自带去噪（对比 v8.1 的无高斯版本）
     inp = rng.randint(0, 256, size=(24, 32)).astype(np.uint8).ravel().tolist()
     noisy = (rng.randint(0, 256, size=(24, 32)).astype(np.uint8) // 8).ravel().tolist()
     mix = [min(255, inp[i] + noisy[i]) for i in range(32 * 24)]

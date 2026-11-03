@@ -708,7 +708,7 @@ def count_fingers(mask, debug_img=None, faces=()):
                               "track_center": track_c, "track_area": track_a}
     ok, why = hand_looks_real(cnt, mask.shape)
     if not ok:
-        # 显式分支：调试时一眼能看出是被哪条规则拒的
+        # 显式分支：调试时能看出是被哪条规则拒的
         return 0, debug_img, {"tips": 0, "gaps": 0, "reason": why, "area": area,
                               "track_center": track_c, "track_area": track_a}
 

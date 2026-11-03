@@ -32,10 +32,10 @@
     /stats                             JSON 统计
     /stop                              停止
 
-答辩用：网页底部那块 HARDWARE ACCELERATION EVIDENCE 是给评委看的硬件证据。
+网页底部那块 HARDWARE ACCELERATION EVIDENCE 的用途：
   - 左边 LIVE：启动时在当前帧上实测一次 ARM vs PL 的耗时与加速比，之后实时更新
   - 右边 MEASURED ON BOARD：validate_no_camera.py 的 20 次平均，与报告同口径
-  - 当场点 ARM 按钮把引擎切回软件，PIPE 帧率立刻下跌 —— 数字之外最直观的证明
+  - 点 ARM 按钮把引擎切回软件，PIPE 帧率会立刻下跌，两者可以直接对照
 """
 import argparse
 import json
@@ -67,10 +67,9 @@ STATE = {"mode": None, "mode_cur": 0, "stop": False, "hw_name": None,
          "area_lo": 0.0, "area_hi": 0.0, "strict": 1.0, "reason": "",
          "cam_jpg": None, "cam_ver": 0, "mask_jpg": None, "mask_ver": 0,
          # ---------- 光照自适应 HUD（2026-10-31 新增）----------
-         # 为什么必须加：本作品的头号创新是「光照自适应」，hw_driver 里
-         #   last_gain / last_mu / last_sigma / last_thresh 全都算好了，
-         #   但网页一个都不显示 —— 演示看起来就跟一排普通滤镜按钮没区别，
-         #   评委看不出"关灯不掉准确率"。这条 HUD 把创新从报告搬到屏幕上。
+         # 为什么必须加：hw_driver 里 last_gain / last_mu / last_sigma / last_thresh
+         #   全都算好了，但网页一个都不显示，看上去就是一排普通滤镜按钮。
+         #   这条 HUD 把这几个数显示出来，关灯时能直接看到它们一起变。
          "gain_x": 1.0,        # AGC 增益（倍），last_gain / 256
          "mu": 0.0,            # 本帧平均亮度（增益前的输入）
          "sigma": 0.0,         # PL 实测噪声 σ（灰度级）
@@ -136,31 +135,31 @@ DETECT_PIX = [320 * 240]
 # 当前肤色判定严格度（gesture.STRICT），可用 /strict/up|down|<数值> 现场调
 STRICT = [1.0]
 # 肤色掩膜可视化开关。默认关；打开后 /mask 推 320x240 的二值掩膜，
-# 用来一眼看出"到底是肤色判定糊了，还是数手指数错了"——调正确率时最重要的诊断
+# 用来区分两种失败：肤色判定糊了（掩膜本身乱），还是数手指数错了（掩膜干净但计数错）
 MASK_ON = [False]
 
 # 差值视图（搬自软件组 display.difference_view）：显示 |滤镜输出 − 灰度原图| ×3。
-# 用途不是正确性校验，而是答辩时让人一眼看出"这个算子在干什么"——
-# 比如 SOBEL 亮的是边缘、GAUSSIAN 几乎全黑、二值化只剩黑白色块。
+# 用途：看每个算子到底改了什么 —— SOBEL 亮的是边缘、GAUSSIAN 几乎全黑、
+# 二值化只剩黑白色块。不做正确性校验。
 # 代价：每帧一次 cvtColor + absdiff + 放大，ARM 上约 3~5 ms，比再跑一遍 PL 便宜。
 DIFF_ON = [False]
 DIFF_GAIN = 3
 
 # ---------------------------------------------------------------- AGC 对比视图
-# 为什么值得做：关灯/低照度下，普通 Canny 要么整片噪声、要么边缘全丢，
-# AG-Canny 仍能出干净边缘 —— 这一屏就是"光照自适应"最直观的一击，
-# 录视频和答辩都靠它。代价：每帧多两次 PL 调用，只在这个视图里付。
+# 用途：关灯/低照度下，普通 Canny 要么整片噪声、要么边缘全丢，
+# AG-Canny 仍能出干净边缘。这一屏把两者放在同一帧上对照。
+# 代价：每帧多两次 PL 调用，只在这个视图里付。
 # ---------------------------------------------------------------- AGC 对比视图
 # 开对比时页面变成 2x2：
 #   ① 左上 ORIGINAL RGB（摄像头原画）
 #   ② 右上 STANDARD CANNY（PL，AGC 关 + 固定阈值 60/30，就是普通 Canny）
 #   ③ 左下 FPGA AG-CANNY（PL，AGC 开 + 按实测噪声 σ 自适应阈值）
 #   ④ 右下 RUNTIME MONITOR（帧号 / 增益 / 噪声 σ / 两条路径的阈值 / PL 耗时）
-# ②③ 同一帧、同一套硬件，只差"光照自适应"，这才是要突出的东西
+# ②③ 同一帧、同一套硬件，只差"光照自适应"这一项。
 # （不做 CPU 基准：那是比加速器，不是比自适应）。
 CMP_ON = [False]
 # 对比视图锁定的算子。开对比期间**不允许切滤镜**（按钮/手势/挥手都忽略），
-# 否则左右两格在比的东西随时变，评委根本看不出在比什么。
+# 否则两格在比的东西随时变，看不出在比什么。
 CANNY_MODE = next((m for m, v in MODE_NAMES.items()
                    if str(v).upper() == "CANNY"), 10)
 CMPBUF = {"a": None, "ver": 0}         # ②号窗格的普通 Canny 帧（process_loop 填）
@@ -171,7 +170,7 @@ CMPSUM = {"gain_std": 1.0, "thr_std": "60 / 30",
 # 为什么必须插：hw_driver 里 sigma_valid = (0 < op < 9)，
 # op 9/10/11 走 5x5 通路，PL 的 ap_return **恒返回 0**（不是"测出 0"，是"没测"）。
 # 于是一直停在 CANNY 时 σ 永远是 0、自适应阈值永远退化成默认 60/30，
-# 右边和左边就长得一模一样 —— 对比视图等于白开。
+# 右边和左边就长得一模一样，对比视图就失去意义了。
 # 插一次 op1 只要一次 PL 调用（约 3.7 ms），输出丢弃，只为把 σ 喂给下一帧的阈值。
 SIGMA_INTERVAL = float(os.environ.get("SIGMA_INTERVAL", "1.0"))
 _LAST_SIG_T = [0.0]
@@ -259,9 +258,9 @@ PERF = {
 }
 # 8 个算子全部已有实测值，不再有 pending 项。保留变量名是为了兼容旧代码路径。
 PERF_PENDING = []
-# 一个很强的架构论点：7 个 3x3 算子的 PL 耗时几乎完全相同（3.775~3.784 ms，
-# 相差 <0.3%）。因为主循环 II=1，每像素固定 1 个时钟，8 选 1 只改数据通路、
-# 不改节奏 —— **算子复杂度与吞吐解耦**。答辩讲这个比只报加速比有力。
+# 7 个 3x3 算子的 PL 耗时几乎完全相同（3.775~3.784 ms，相差 <0.3%）。
+# 因为主循环 II=1，每像素固定 1 个时钟，8 选 1 只改数据通路、不改节奏
+# —— **算子复杂度与吞吐解耦**。
 PERF_NOTE_PL_FLAT = True
 # 器件 xc7z020clg400-1（PYNQ-Z2），v5 IP 级实现后数据（2026-10-19）
 # 口径说明：这里是 **IP 本体** 的资源（与 v4 那组同口径，报告和网页都用这一套）。
@@ -278,9 +277,9 @@ TIMING = {"fclk_mhz": 100, "period_ns": 10.0,
 #   这里会 IndexError（在 process_loop 线程里抛，现象是"点按钮没反应"）。
 ARM_BASE = [None] * len(MODE_NAMES)
 BENCH_REQ = [False]      # 网页点了 RUN BENCHMARK
-BENCH_AUTO = [True]      # 启动后自动跑一次，这样评委一打开就有数
+BENCH_AUTO = [True]      # 启动后自动跑一次，打开网页就有数
 # 当前运算引擎。"pl" = PL 硬件 IP；"sw" = ARM 纯软件（NumPy 参考实现）。
-# 可以在网页上当场切换 —— 切过去帧率立刻断崖，这是最直观的硬件加速证据：
+# 可以在网页上当场切换 —— 切过去帧率立刻下跌：
 # 同一路摄像头、同一条流水线，只是把"算滤镜"这件事从 ARM 挪到 PL。
 ENGINE = ["pl"]
 ENGINE_USED = [None]     # 当前 processor 实际对应的引擎，用来 detect 到"该换了"
@@ -326,7 +325,7 @@ def _best_ms(fn, reps):
 def run_benchmark(processor, frame, reps=5):
     """在当前这一帧上，当场量一次 PL vs ARM，返回三个模式的明细。
 
-    刻意给两个口径，因为答辩时最容易翻车的就是"你这数字怎么和报告不一样"：
+    刻意给两个口径，因为两个口径的数不同，必须各自标明、不能混用：
       * pl_kernel_ms : AP_START 写到 AP_DONE 拉起，PL 核内部耗时
                        （与 validate_no_camera.py 同源，报告主口径）
       * e2e_ms       : processor.run() 全流程，多了 ARM 侧打包
@@ -483,7 +482,7 @@ table.pt .hi{color:#6ee68c;font-weight:500}
 <div class="bar">
   <!--MODES-->
   <a class="cal" href="/calib">RECALIBRATE</a>
-  <a class="cal" id="agon" href="/agc/on" title="AGC 自动增益开：暗处自动提亮（关灯演示就靠它对比）">AGC ON</a>
+  <a class="cal" id="agon" href="/agc/on" title="AGC 自动增益开：暗处自动提亮（关灯对比用）">AGC ON</a>
   <a class="cal" id="agoff" href="/agc/off" title="AGC 关：退回 gain=256，暗处不再提亮">AGC OFF</a>
   <a class="cal" href="/thresh/auto" title="Canny 阈值交回按实测噪声 sigma 自动计算">THRESH AUTO</a>
   <a class="cal" href="/strict/up" title="肤色判定更严：背景误检变少，但手可能检测不到">STRICT +</a>
@@ -492,7 +491,7 @@ table.pt .hi{color:#6ee68c;font-weight:500}
   <a class="cal" href="/mask/off">MASK OFF</a>
   <a class="cal" id="gsw" href="/gesture/swipe" title="挥手换滤镜：手掌从右往左划 = 下一个模式，从左往右划 = 上一个">SWIPE</a>
   <a class="cal" id="gfi" href="/gesture/fingers" title="伸 1~5 根手指直选：GRAY / SOBEL / CANNY / NMS / GAUSS5（与挥手互斥）">FINGERS</a>
-  <a class="cal" id="dfon" href="/diff/on" title="差值视图：显示 |滤镜输出 − 灰度原图| ×3，一眼看出这个算子在干什么">DIFF ON</a>
+  <a class="cal" id="dfon" href="/diff/on" title="差值视图：显示 |滤镜输出 − 灰度原图| ×3，看这个算子改了什么">DIFF ON</a>
   <a class="cal" id="dfoff" href="/diff/off">DIFF OFF</a>
   <a class="cal" id="cmon" href="/cmp/on" title="2x2 对比：左上原画、右上 PL 输出、左下普通 Canny（AGC 关+固定阈值）、右下 AG-Canny（AGC 开+按噪声 sigma 自适应阈值）。开对比期间锁定 CANNY，不会切滤镜">
     AGC 对比 ON</a>
@@ -556,7 +555,7 @@ table.pt .hi{color:#6ee68c;font-weight:500}
   <!-- 2026-10-31 融合流水线可视化。
        op 9/10/11 是同一条四级链的三个抽头，高亮的级数不同：
        op 9 亮到第 1 级、op 11 亮到第 3 级、op 10 全亮。
-       一眼可看出它们不是三个并列算子，而是同一条链深浅不同的三个截面。 -->
+       可以看出它们不是三个并列算子，而是同一条链深浅不同的三个截面。 -->
   <div class="pipe" id="pipeline">
     <div class="ptitle">CURRENT PIPELINE &nbsp;&mdash;&nbsp; 当前处理链路</div>
     <div class="pchain">
@@ -631,7 +630,7 @@ let W=640,H=480,FS=W*H,img=null,d32=null,buf=null,have=0;
 // 灰度->RGBA 查表：省掉每像素 3 次移位+2 次或。307200 像素/帧，这个循环很值
 const LUT=new Uint32Array(256);
 for(let v=0;v<256;v++) LUT[v]=0xFF000000|(v<<16)|(v<<8)|v;
-// 客户端实际收到多少帧（对比板子 push，能一眼看出丢在网路上还是浏览器上）
+// 客户端实际收到多少帧（对比板子 push，用来判断丢在网路上还是浏览器上）
 let cf_n=0, cf_t0=performance.now(), cf_fps=0;
 
 async function init(){
@@ -692,7 +691,7 @@ function renderPerf(s){
   const isSw = !s.hw || s.hw.indexOf('SIM')>=0 || s.hw.indexOf('SOFTWARE')>=0
                || s.hw.indexOf('no PL')>=0;
   if(sw) sw.style.display = isSw ? 'block' : 'none';
-  // 高亮当前引擎按钮，评委一眼知道现在是 PL 还是 ARM 在算
+  // 高亮当前引擎按钮，标明现在是 PL 还是 ARM 在算
   const epl=document.getElementById('epl'), esw=document.getElementById('esw');
   if(epl) epl.className = (s.engine_used==='pl') ? 'cal on' : 'cal';
   if(esw) esw.className = (s.engine_used==='sw') ? 'cal on' : 'cal';
@@ -717,7 +716,7 @@ async function stats(){
     set('pipe', s.pipe.toFixed(1));
     set('push', s.push.toFixed(1));
     set('fms', s.filter_ms.toFixed(1));
-    // 光照自适应 HUD：关灯时这三个数会一起动，是"自适应"最直观的证据
+    // 光照自适应 HUD：关灯时这三个数会一起动
     set('gain', (s.gain_x==null?1:s.gain_x).toFixed(2));
     set('mu',   (s.mu==null?0:s.mu).toFixed(0));
     set('sig',  (s.sigma==null?0:s.sigma).toFixed(2));
@@ -728,7 +727,7 @@ async function stats(){
     set('ghz', s.gesture_hz.toFixed(1));
     set('area', Math.round(s.area));
     set('st', s.strict.toFixed(2));
-    // reason 是软件组给的"为什么判没手"，现场调参全靠它
+    // reason 是软件组给的"为什么判没手"，调参时看它
     const R={"hand_too_big":"背景太大片（调大 MAX_AREA_FRAC）",
              "too_solid":"色块太实心不像手（调大 MAX_SOLIDITY）",
              "too_smooth":"边缘太光滑没指缝（调小 MIN_ROUGH）",
@@ -740,11 +739,11 @@ async function stats(){
     set('rsn', R[s.reason]||s.reason||'-');
     const mk=document.getElementById('mkpane');
     if(mk) mk.style.display = s.mask_on ? 'block' : 'none';
-    // 差值视图按钮高亮 + 标题栏注明（不然评委分不清看的是结果还是差值）
+    // 差值视图按钮高亮 + 标题栏注明（否则看不出显示的是结果还是差值）
     const df=document.getElementById('dfon'), dfo=document.getElementById('dfoff');
     if(df) df.className = s.diff_on ? 'cal on' : 'cal';
     if(dfo) dfo.className = s.diff_on ? 'cal on' : 'cal';
-    // AGC 对比视图按钮高亮：让评委一眼知道现在看的是分屏还是单画面
+    // AGC 对比视图按钮高亮：标明现在是分屏还是单画面
     const cm=document.getElementById('cmon'), cmo=document.getElementById('cmoff');
     if(cm) cm.className = s.cmp_on ? 'cal on' : 'cal';
     if(cmo) cmo.className = s.cmp_on ? 'cal on' : 'cal';
@@ -800,7 +799,7 @@ async function stats(){
     if(agfEl) agfEl.className = (s.agc_on===false) ? 'cal on' : 'cal';
     // ---- 融合流水线可视化（2026-10-31）----
     // op 9/11/10 是同一条四级链的三个抽头：高亮到第几级 = 从第几级写回。
-    // 亮的级数不同，一眼看出它们不是三个并列算子，而是同一条链的三个截面。
+    // 亮的级数不同，可以看出它们不是三个并列算子，而是同一条链的三个截面。
     const STAGE_OF={9:1,11:3,10:4};
     const TAP_OF={9:'op 9 从第 1 级写回（第 2~4 级未参与）',
                   11:'op 11 从第 3 级写回（第 4 级未参与）',
@@ -836,7 +835,7 @@ init(); setInterval(stats,700); stats();
    走的是和按钮完全相同的 HTTP 路由，不另开一套状态。
      0~9      模式 0~9
      a / b    模式 10 CANNY / 11 NMS
-     p / s    PL 引擎 / ARM 引擎（切到 ARM 帧率断崖，现场最强证据）
+     p / s    PL 引擎 / ARM 引擎（切到 ARM 帧率会明显下跌）
      g        AGC 开关切换（关灯演示用）
      c        重新校准      d 差值视图      m 肤色掩膜 */
 document.addEventListener('keydown', function(ev){
@@ -1020,7 +1019,7 @@ def process_loop(args):
                     ENGINE[0] = ENGINE_USED[0]   # 回滚，免得每帧重试刷屏
 
             # 加速比实测：启动后自动跑一次（约 0.3 s 卡顿，只此一次），
-            # 这样评委一打开网页就能看到"PL 比 ARM 快多少倍"，不用等谁去点按钮。
+            # 打开网页就能看到"PL 比 ARM 快多少倍"，不用手动点按钮。
             # 网页上的 RUN BENCHMARK 会重新置位 BENCH_REQ 再跑一次。
             if BENCH_AUTO[0] or BENCH_REQ[0]:
                 BENCH_AUTO[0] = False
@@ -1445,8 +1444,8 @@ def cam_encode_loop(args):
     否则①号在同样大的格子里会明显比②③糊。
     """
     # 对比模式下①号必须和②③同分辨率（都是 640x480），否则同样大的格子里
-    # ① 是 320x240 被放大、②③ 是原生 640x480，一眼就能看出清晰度不一样，
-    # 评委第一反应是"这不是同一帧"。代价是编码贵，所以同时把帧率压到 5 fps。
+    # ① 是 320x240 被放大、②③ 是原生 640x480，能看出清晰度不一样，
+    # 否则会让人以为不是同一帧。代价是编码贵，所以同时把帧率压到 5 fps。
     while not STATE["stop"]:
         t0 = time.perf_counter()
         cmp_on = CMP_ON[0]
@@ -1753,8 +1752,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(PAGE.encode("utf-8"), "text/html; charset=utf-8")
         elif p in ("/agc/on", "/agc/off"):
             # AGC 自动增益开关。关掉就退回 gain=256（与 v6 逐字节一致）。
-            # 现场用它做「关灯对比」：AGC ON 暗处自动提亮，OFF 直接变黑 ——
-            # 这是「光照自适应」在演示里最直观的一击。
+            # 用它做「关灯对比」：AGC ON 时暗处自动提亮，OFF 时直接变黑。
             drv = PROC[0]
             if drv is None:
                 print("[agc] 驱动还没起来，忽略")
@@ -1895,7 +1893,7 @@ def main():
                          "默认 0.9 = 挥手内部冷却 0.8 再留 0.1 余量；"
                          "设成 1.5 会让人觉得'第二下挥手没反应'")
     ap.add_argument("--no-bench", action="store_true",
-                    help="启动时不要自动跑加速比实测（默认会自动跑一次，好让评委一打开"
+                    help="启动时不要自动跑加速比实测（默认会自动跑一次，打开网页"
                          "网页就看到数字）。跑一次约 0.3 s，其间画面会卡一下")
     ap.add_argument("--bench-reps", type=int, default=5,
                     help="实测时每个模式重复几次取最快值（默认 5）")
