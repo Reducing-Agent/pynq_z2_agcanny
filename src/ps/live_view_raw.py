@@ -152,12 +152,27 @@ CMPSUM = {"gain_std": 1.0, "thr_std": "60 / 30",
 # 于是一直停在 CANNY 时 σ 永远是 0、自适应阈值永远退化成默认 60/30，
 # 右边和左边就长得一模一样 —— 对比视图等于白开。
 # 插一次 op1 只要一次 PL 调用（约 3.7 ms），输出丢弃，只为把 σ 喂给下一帧的阈值。
-SIGMA_EVERY = int(os.environ.get("SIGMA_EVERY", "15"))
+SIGMA_INTERVAL = float(os.environ.get("SIGMA_INTERVAL", "1.0"))
+_LAST_SIG_T = [0.0]
+# ②号窗格（普通 Canny）多久才重算一次 —— 单位是**秒，不是帧数**。
+# 为什么必须用时间而不是帧数：帧数节流下，帧率一跌，主循环变慢、
+# 额外的 PL 调用在每帧耗时里的占比反而升高，形成"越慢越要算、越算越慢"
+# 的正反馈，极端时主链被拖到肉眼完全静止（2026-11-03 现场）。
+# 改成按时间节流后，额外开销恒定为每秒 1/STD_INTERVAL + 1/SIGMA_INTERVAL
+# 次 PL 调用，与主链帧率彻底解耦。
+STD_INTERVAL = float(os.environ.get("STD_INTERVAL", "0.25"))
+# 想让 ②号窗格更跟手就把 STD_INTERVAL 调小（现场临时改：STD_INTERVAL=0.15 ./start_web.sh）；
+# 直接设 CMPSTD=0 可以整块关掉 ② 号对照图的额外计算（排障用：关掉后画面若恢复，
+# 就证明瓶颈在对照图这一遍 PL，而不是主链）。
+CMPSTD_ON = os.environ.get("CMPSTD", "1") not in ("0", "no", "off", "")
+_LAST_STD_T = [0.0]
+_CMPSTD_FAILS = [0]
 # ②号窗格（普通 Canny）每几帧才重算一次。
 # 它是一张"对照图"，不是实时主画面，没有必要每帧都跑一遍 PL
 # （每帧多一次 PL 调用 = 多约 14 ms，四画面时帧率直接掉一半）。
 # 隔帧复用上一张，肉眼几乎看不出差别，帧率却回来了。
-# 想让 ②号窗格更跟手就把 STD_EVERY 调小（现场临时改：STD_EVERY=2 ./start_web.sh）。
+# 想让 ②号窗格更跟手就把 STD_EVERY 调小 —— 但这个常量已经不再参与节流判断，
+# 真正生效的是 STD_INTERVAL（秒）。留着只是给老脚本/老文档兜底，别再用。
 STD_EVERY = int(os.environ.get("STD_EVERY", "5"))
 _LAST_SIGMA = [0.0]      # 最近一次**有效**的 σ，避免 HUD 在 0 和数值之间跳
 
@@ -1006,9 +1021,13 @@ def process_loop(args):
             # 所以这里额外跑一遍：AGC 关（gain=256）+ 固定双阈值 60/30。
             cmp_ms = 0.0
             if CMP_ON[0]:
-                # 只在需要重算的那一帧额外跑 PL；其余帧沿用上一张对照图。
-                # σ 是否该探测也一起判断，两件事共用一次"这帧要不要多干活"的决定。
-                _need_std = ((count % STD_EVERY) == 0) or not CMPBUF["a"]
+                # 两件事都按"距上次多久"判断，不按帧号 —— 理由见 STD_INTERVAL 注释。
+                _now = time.perf_counter()
+                _need_sig = CMPSTD_ON and (_now - _LAST_SIG_T[0] >= SIGMA_INTERVAL)
+                _need_std = (CMPSTD_ON
+                             and _CMPSTD_FAILS[0] < 3
+                             and ((_now - _LAST_STD_T[0] >= STD_INTERVAL)
+                                  or CMPBUF["a"] is None))
                 _left = None          # 不重算的帧沿用上一张对照图，下面靠它判断
                 tc = time.perf_counter()
                 # 先记下主画面（AG-Canny）这一帧实际用上的增益和阈值 ——
@@ -1018,15 +1037,15 @@ def process_loop(args):
                 _prev_agc = getattr(processor, "agc_enabled", True)
                 _prev_ad = getattr(processor, "canny_adaptive", False)
                 try:
-                    # σ 补测：op1..8 才返回 σ，op9~11 恒为 0（见 SIGMA_EVERY 注释）。
-                    # 每 SIGMA_EVERY 帧插一次 op1，输出丢弃，只为让 AG-Canny 的阈值
-                    # 真能按实测噪声自适应（否则永远退化成默认 60/30）。
-                    if ((count % SIGMA_EVERY) == 0
-                            or not getattr(processor, "_sigma_prev_ok", False)):
+                    # σ 补测：op1..8 才返回 σ，op9~11 的 5x5 通路 PL **恒返回 0**
+                    # （不是"测出 0"，是"没测"）。不补测的话 AG-Canny 的阈值
+                    # 永远退化成默认 60/30，右边和左边就长得一模一样。
+                    if _need_sig:
                         processor.run(1, frame)
                         _s = float(getattr(processor, "last_sigma", 0.0) or 0.0)
                         if _s > 0:
                             _LAST_SIGMA[0] = _s
+                        _LAST_SIG_T[0] = _now
                     if _need_std:
                         processor.agc_enabled = False
                         processor.canny_adaptive = False
@@ -1036,13 +1055,22 @@ def process_loop(args):
                     _lg = int(getattr(processor, "last_gain", 256) or 256)
                     _lt = int(getattr(processor, "last_thresh", 0) or 0)
                 except Exception as exc:
-                    print("[cmp] standard pass failed:", exc)
+                    _CMPSTD_FAILS[0] += 1
+                    print("[cmp] standard pass failed (%d/3): %s"
+                          % (_CMPSTD_FAILS[0], exc))
+                    if _CMPSTD_FAILS[0] >= 3:
+                        # 连着三次都炸就别再试了：每帧重试会把主链一起拖死，
+                        # ② 号窗格保持上一张（或空白），①③ 照常跑。
+                        print("[cmp] giving up on the standard pane; "
+                              "compare view keeps running without it")
                     _left = None
                 finally:
                     # 还原成网页上 AGC/THRESH 按钮设定的状态，别把面板状态改坏
                     processor.agc_enabled = _prev_agc
                     processor.canny_adaptive = _prev_ad
                 if _left is not None:
+                    _CMPSTD_FAILS[0] = 0
+                    _LAST_STD_T[0] = _now
                     with LOCK:
                         CMPBUF["a"] = _left
                         CMPBUF["ver"] += 1
@@ -1132,11 +1160,13 @@ def process_loop(args):
                 count, fps_started = 0, now
                 print("[live] pipe %.1f fps | push %.1f fps | raw#%d | mode %d %s | "
                       "filter(PL) %.1f ms (pack %.1f + kernel %.2f) = %.1fx | "
+                      "cmp %.1f ms | "
                       "gesture %.1f ms @ %.1f Hz | fingers %s | "
                       "swipe area=%.0f anchor=%d pts=%d dx=%+.2f span=%.2fs%s"
                       % (STATE["pipe"], STATE["push"], RAW_CLIENTS[0],
                          STATE["mode_cur"], MODE_NAMES[STATE["mode_cur"]],
                          filter_ms, pack_ms, kernel_ms, sp_live,
+                         cmp_ms,
                          FINGERS["ms"], FINGERS["hz"], FINGERS["value"],
                          float(SWIPE_DIAG.get("area") or 0.0),
                          int(bool(SWIPE_DIAG["anchor"])), int(SWIPE_DIAG["points"]),
@@ -1337,21 +1367,30 @@ def cmp_encode_loop(args):
     """
     quality = int(args.quality)
     last = -1
+    warned = False
     while not STATE["stop"]:
-        if not CMP_ON[0]:
-            time.sleep(0.15)
-            continue
-        with LOCK:
-            ver = CMPBUF["ver"]
-            a = CMPBUF["a"]
-        if a is not None and ver != last:
-            last = ver
-            ok, buf = cv2.imencode(".jpg", a,
-                                   [int(cv2.IMWRITE_JPEG_QUALITY), quality])
-            if ok:
-                with LOCK:
-                    CMPJPG["jpg"] = buf.tobytes()
-                    CMPJPG["ver"] = ver
+        # 整段包 try：cv2.imencode 抛一次异常就会让**这条线程整个死掉**，
+        # 表现是 ② 号窗格永远停在某一帧（或一直空白），而终端上没有任何报错，
+        # 极难定位。兜住之后最坏情况是丢一帧，线程继续活。
+        try:
+            if not CMP_ON[0]:
+                time.sleep(0.15)
+                continue
+            with LOCK:
+                ver = CMPBUF["ver"]
+                a = CMPBUF["a"]
+            if a is not None and ver != last:
+                last = ver
+                ok, buf = cv2.imencode(".jpg", a,
+                                       [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+                if ok:
+                    with LOCK:
+                        CMPJPG["jpg"] = buf.tobytes()
+                        CMPJPG["ver"] = ver
+        except Exception as exc:
+            if not warned:
+                print("[cmp] encode loop error (kept alive):", exc)
+                warned = True
         # 0.06 s ≈ 最高 16 次/s 编码。留这个间隔不是为了限帧，而是让出 GIL：
         # 板上是双核 Cortex-A9，采集/处理/手势/三条推流全是 Python 线程，
         # 空转 while 会把 GIL 抢得主循环一次 run() 从 3.7 ms 拖到 30 ms 以上。
