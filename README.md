@@ -86,16 +86,43 @@ as required by the competition submission rules.
 
 ## Quick start (on the board)
 
+Two things to know before typing anything:
+
+- The board runs from **one flat directory**. `hw_driver.py` looks for
+  `rgb2gray.bit` next to itself, so the Python sources, the bitstream and the
+  `.hwh` have to sit together. In this repository those halves are in
+  `src/ps/` (sources) and `board/` (bitstream, manifest), so a fresh deploy
+  needs one copy step.
+- Port **9090 is ssh**, port **8080 is the web UI**. Easy to mix up.
+
+### Fresh deploy from this repository
+
 ```bash
-source /usr/local/share/pynq-venv/bin/activate
-cd rgb2gray_v82
-python3 -u check_kit.py      # verify bitstream checksums
-./start_web.sh               # launch the web UI, served on port 8080
+BOARD=/home/xilinx/jupyter_notebooks/rgb2gray_v82
+mkdir -p "$BOARD"
+cp src/ps/*.py src/ps/start_web.sh          "$BOARD/"
+cp board/rgb2gray.bit board/rgb2gray.hwh    "$BOARD/"
+cp board/FILES.txt    board/MD5SUMS.txt     "$BOARD/"
+cp src/ps/BOARD_CHECKLIST_1030.md           "$BOARD/"
 ```
 
+### Run it
+
+```bash
+source /usr/local/share/pynq-venv/bin/activate
+cd /home/xilinx/jupyter_notebooks/rgb2gray_v82
+python3 -u check_kit.py      # verifies every file and the bitstream MD5
+./start_web.sh               # web UI on port 8080
+```
+
+Open `http://192.168.2.99:8080/`.
+
+Use the full path in `cd`. A bare `cd rgb2gray_v82` only works if you happen to
+already be in `/home/xilinx/jupyter_notebooks`.
+
 `start_web.sh` sets `MIN_ROUGH=1.07` before launching. That threshold is the
-shape criterion for a closed fist: perimeter ratio of a fist measures 1.08 to
-1.10, below the 1.14 tuned for an open palm, so "one finger" would otherwise
+shape criterion for a closed fist: the perimeter ratio of a fist measures 1.08
+to 1.10, below the 1.14 tuned for an open palm, so "one finger" would otherwise
 be rejected as not a hand. The equivalent manual command is:
 
 ```bash
@@ -105,6 +132,9 @@ MIN_ROUGH=1.07 python3 -u live_view_raw.py --auto
 Do **not** run these with `sudo` — `env_reset` clears the PYNQ environment and
 `Overlay` construction fails with "No Devices Found".
 
+`start_web.sh` has no `--display` flag any more; the server always serves the
+web UI. Passing `--display web` fails with "unrecognized arguments".
+
 Bitstream identity must be checked by MD5; every build is exactly 4 045 771
 bytes, so file size cannot distinguish versions.
 
@@ -113,73 +143,12 @@ bytes, so file size cannot distinguish versions.
 | `rgb2gray.bit` | `6b5fd2f907b7214a528530dcca6b418a` |
 | `rgb2gray.hwh` | `9b7407a3772b4d2800d00b6d65ba751a` |
 
-## AGC compare view
+### The one file a fresh deploy will not have
 
-Click **AGC compare ON** in the top bar (or press `v`) to switch the page from
-the single-pane view to a 2x2 layout:
-
-| | left | right |
-|---|---|---|
-| top | 1. raw camera frame | 2. standard Canny: same PL, AGC off, fixed 60/30 |
-| bottom | 3. AG-Canny: AGC on, thresholds from measured sigma | 4. runtime monitor |
-
-Both Canny panes run on the same FPGA with the same bitstream. The only
-difference is whether light adaptation is on, which is the point of the
-comparison. While the compare view is active the operator is locked to Canny,
-so neither a button nor a gesture can switch the filter underneath you.
-
-Two things to know before filming it:
-
-- AGC only brightens, it never dims (`AGC_TARGET_MU = 110`). In a bright room
-  the measured mean stays above 110, the gain is clamped to 1.00x, and both
-  panes come out looking the same. Dim the lights or half-cover the lens to
-  push the mean below 110.
-- `hw_driver` reports sigma only for op 1..8; the 5x5 Canny path leaves
-  `ap_return` at 0. The compare view inserts an extra op-1 pass every
-  `SIGMA_EVERY` frames (default 15) purely to measure noise, and recomputes
-  pane 2 every `STD_EVERY` frames (default 5). Both are environment variables:
-  smaller values make the panes more responsive and cost frame rate, e.g.
-  `STD_EVERY=2 ./start_web.sh`.
-
----
-
-## Reproduction
-
-```bash
-python3 -u validate_v8.py        # 6 stages, all green: 180 pixel-exact
-                                 # comparisons, 72 sigma read-back checks,
-                                 # threshold sweeps, and the innovation evidence
-python3 -u bench_fusion_5pass.py  # pass-count linearity experiment
-```
-
-See `reproduce/` for the full ordered sequence. The recorded numbers are in
-`report/design_report.md` (section 4).
-
-This repository carries the released design only: one C++ source, one header,
-one build script, one testbench. Intermediate iterations are kept out on
-purpose so that every file here is load-bearing.
-
----
-
-## Control path and data path are decoupled
-
-Gesture recognition runs on the PS and consumes the **raw colour camera
-frame**, not the PL edge map. Three reasons:
-
-1. The PL output is single-channel — chroma is gone, and skin detection needs it.
-2. In an edge map, wall texture and a hand are not separable.
-3. A control path must not depend on the state of the thing it controls.
-
-The PL result is only displayed; the gesture result only writes the `mode`
-register. The two paths do not feed each other.
-
----
-
-## Scope
-
-Implemented: the HLS IP, the fused pipeline, the adaptive sigma loop, the 12
-run-time modes, the PYNQ driver, the web UI, and PS-side gesture control.
-
-Not implemented, and therefore not claimed anywhere: AXI DMA IP, HDMI output,
-on-board push buttons. Data moves through the IP's own AXI master ports;
-display is over Ethernet to a browser.
+`check_kit.py` compares against `FILES.txt`, which records the names as they
+are on the board. One documentation file carries Chinese characters in the
+delivered package (`README_上板说明_v82.md`); the submission rules require
+ASCII-only names, so this repository carries it as `src/ps/README_board_v82.md`.
+On a fresh deploy `check_kit.py` prints `(缺，不影响运行)` — "missing, does not
+affect running" — for that one line. Nothing imports it. Everything else,
+including every `.py`, the bitstream and the `.hwh`, must read `OK`.
