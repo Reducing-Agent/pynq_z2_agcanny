@@ -941,7 +941,6 @@ pynq_z2_agcanny/
 ├── data/                  # 测试数据说明（全部由脚本合成，固定随机种子）
 ├── reproduce/             # 复现包：env.ps1 / run_hls.ps1 / build_bitstream.tcl / gen_md5sums.py
 ├── skill/                 # 技能包 + README.md（真实案例 + 四要素模板）
-├── poster/                # 决赛英文 A4 海报（HTML + PPTX，不含队伍信息）
 └── report/                # 本设计报告
 ```
 

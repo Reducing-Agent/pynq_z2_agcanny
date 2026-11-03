@@ -74,7 +74,6 @@ board/         on-board run instructions, file manifest, checksums
 data/          test images
 reproduce/     step-by-step reproduction scripts
 skill/         reusable prompt workflows, templates, check scripts, pitfall list
-poster/        A4 English poster (HTML + PPTX)
 report/        full design report
 ```
 
