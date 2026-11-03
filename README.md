@@ -1,13 +1,9 @@
 # AG-Canny — A Noise-Aware Adaptive Real-Time Vision Front-End on PYNQ-Z2
 
-**Registered competition title:** Gesture-Interactive Image Processor
-
-> A note on the title. The registered name puts *gesture* first, but the
-> subject of this work is the **image processor**. Gesture is only one of
-> three control entries — web UI buttons, keyboard shortcuts, and hand
-> gestures — and all three do exactly the same thing: write one AXI-Lite
-> register. The engineering contribution is the PL pipeline itself, which
-> this repository documents in full.
+> A note on the name. Gesture is only one of three control entries — web
+> UI buttons, keyboard shortcuts, and hand gestures — and all three do
+> exactly the same thing: write one AXI-Lite register. The subject of this
+> repository is the image processor itself.
 
 ---
 
@@ -80,7 +76,7 @@ report/        full design report
 ```
 
 Every path and filename is ASCII-only (lowercase letters, digits, `_`, `-`),
-as required by the competition submission rules.
+so the tree reproduces as-is on Linux and the scripts can automate over it.
 
 ---
 
@@ -147,8 +143,9 @@ bytes, so file size cannot distinguish versions.
 
 `check_kit.py` compares against `FILES.txt`, which records the names as they
 are on the board. One documentation file carries Chinese characters in the
-delivered package (`README_上板说明_v82.md`); the submission rules require
-ASCII-only names, so this repository carries it as `src/ps/README_board_v82.md`.
+delivered package (`README_上板说明_v82.md`); this repository keeps every path
+ASCII-only for cross-platform reproducibility, so it is stored here as
+`src/ps/README_board_v82.md`.
 On a fresh deploy `check_kit.py` prints `(缺，不影响运行)` — "missing, does not
 affect running" — for that one line. Nothing imports it. Everything else,
 including every `.py`, the bitstream and the `.hwh`, must read `OK`.
