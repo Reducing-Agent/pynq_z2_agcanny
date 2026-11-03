@@ -152,12 +152,13 @@ CMPSUM = {"gain_std": 1.0, "thr_std": "60 / 30",
 # 于是一直停在 CANNY 时 σ 永远是 0、自适应阈值永远退化成默认 60/30，
 # 右边和左边就长得一模一样 —— 对比视图等于白开。
 # 插一次 op1 只要一次 PL 调用（约 3.7 ms），输出丢弃，只为把 σ 喂给下一帧的阈值。
-SIGMA_EVERY = 12
+SIGMA_EVERY = int(os.environ.get("SIGMA_EVERY", "15"))
 # ②号窗格（普通 Canny）每几帧才重算一次。
 # 它是一张"对照图"，不是实时主画面，没有必要每帧都跑一遍 PL
 # （每帧多一次 PL 调用 = 多约 14 ms，四画面时帧率直接掉一半）。
 # 隔帧复用上一张，肉眼几乎看不出差别，帧率却回来了。
-STD_EVERY = 3
+# 想让 ②号窗格更跟手就把 STD_EVERY 调小（现场临时改：STD_EVERY=2 ./start_web.sh）。
+STD_EVERY = int(os.environ.get("STD_EVERY", "5"))
 _LAST_SIGMA = [0.0]      # 最近一次**有效**的 σ，避免 HUD 在 0 和数值之间跳
 
 _push_n = 0
@@ -317,21 +318,29 @@ a.on{background:#2f4a38;color:#c9f5d3;border-color:#6ee68c}
 .mon span{color:#8a867e}
 .mon b{color:#7ecbff;font-weight:500}
 .monnote{font-size:11px;color:#8a867e;padding:5px 2px 0}
-body.cmp .mon{min-height:36vh}
-body.cmp .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-body.cmp .cmpane{display:block}
-body.cmp .wrap{max-width:1760px}
-/* 录屏要"一屏装得下"：把顶栏、标题、HUD 全部收紧，
-   四个窗格按视口高度定尺寸（不再按宽度撑满），
-   并隐掉下面两块面板（性能表和流水线图，录视频时它们只挡视线）。 */
-body.cmp .bar{font-size:11.5px;padding:5px 10px;gap:7px}
+/* 对比视图：2x2 四窗格，四格严格等大、整屏一屏装下（不出滚动条）。
+   做法：body 变成纵向 flex 撑满 100vh，顶栏不吃掉多余高度，
+   .grid 用 flex:1 吃掉剩余全部高度，两行两列各 1fr ——
+   于是四格尺寸只由视口决定，与图片内容无关，天然等大。 */
+body.cmp{overflow:hidden;height:100vh;display:flex;flex-direction:column}
+body.cmp .bar{flex:0 0 auto;font-size:11.5px;padding:4px 10px;gap:7px}
 body.cmp .bar a{padding:1px 7px}
 body.cmp .hint{display:none}
-body.cmp .title{font-size:14px;padding:4px 0 6px}
-body.cmp .wrap{padding:5px 10px 8px}
+body.cmp .wrap{flex:1 1 auto;min-height:0;max-width:none;padding:4px 10px 6px;
+               display:flex;flex-direction:column}
+body.cmp .title{flex:0 0 auto;font-size:14px;padding:3px 0 5px}
+body.cmp .grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
+               gap:8px;flex:1 1 auto;min-height:0}
+body.cmp .pane{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+/* min-height:0 是关键：flex 子项默认 min-height:auto，不写死它图片不会缩，
+   而是把格子撑破、整页冒出滚动条 —— 这也是上一版"看着像卡死"的一半原因。
+   object-fit:contain 保证 640x480 不被拉伸，四格边框仍然严格等大。 */
+body.cmp .pane img,body.cmp .pane canvas{flex:1 1 0;min-height:0;width:100%;
+     height:auto;object-fit:contain}
+body.cmp .mon{flex:1 1 0;min-height:0;overflow:auto}
+body.cmp .cmpane{display:block}
 body.cmp .cap{font-size:11.5px;padding:0 0 3px 2px}
-body.cmp .pane img,body.cmp .pane canvas{max-height:36vh;width:auto;margin:0 auto}
-body.cmp .hud{font-size:12px;line-height:1.55;padding:6px 2px 0}
+body.cmp .hud{flex:0 0 auto;font-size:11.5px;line-height:1.4;padding:4px 2px 0}
 body.cmp .perf,body.cmp .pipe{display:none}
 .cap{font-size:12.5px;padding:0 0 5px 2px;color:#9a968e}
 .cap.pl{color:#6ee68c;font-weight:500}
@@ -408,7 +417,7 @@ table.pt .hi{color:#6ee68c;font-weight:500}
     键盘：0~9 与 a/b 切模式 · p/s 切 PL/ARM · g 切 AGC · c 校准 · d 差值 · m 掩膜 · v 对比分屏</span>
 </div>
 <div class="wrap">
-  <div class="title">PYNQ-Z2 REAL-TIME IMAGE ACCELERATION</div>
+  <div class="title"><!--TITLE--></div>
   <div class="grid">
     <div class="pane"><div class="cap">① ORIGINAL RGB</div>
       <img id="cam" src="/cam"></div>
@@ -793,13 +802,16 @@ def render_page():
     """
     # 关着对比时两格不留 src：浏览器连 display:none 的 <img> 也会去拉流，
     # 白占两条 MJPEG 连接和 ARM 编码时间。
-    _a = 'src="/cmpA"' if CMP_ON[0] else ""
-    _b = 'src="/cmpB"' if CMP_ON[0] else ""
+    # 占位符名字必须和模板里写的一模一样 —— 上一版这里写的是 SRC_A/SRC_B，
+    # 模板里却是 SRC_STD，替换不到，结果右上角永远没有画面。
+    _std = 'src="/cmpstd"' if CMP_ON[0] else ""
     return (PAGE_TEMPLATE
             .replace("<!--MODES-->", build_mode_buttons())
             .replace("<!--CMPCLS-->", "cmp" if CMP_ON[0] else "")
-            .replace("<!--SRC_A-->", _a)
-            .replace("<!--SRC_B-->", _b))
+            .replace("<!--SRC_STD-->", _std)
+            .replace("<!--TITLE-->",
+                     "AG-CANNY | REAL-TIME DUAL-PATH COMPARISON" if CMP_ON[0]
+                     else "PYNQ-Z2 REAL-TIME IMAGE ACCELERATION"))
 
 
 def rebuild_page():
@@ -1084,7 +1096,9 @@ def process_loop(args):
                 STATE["filter_ms"] = filter_ms
                 STATE["diff_ms"] = diff_ms
                 STATE["cmp_ms"] = cmp_ms
-                STATE["fid"] = count
+                # 用采集线程的单调帧号，别用 count：count 每 0.5 s 被 fps 统计清零，
+                # 面板上就永远显示 0（v8.2b 实踩，看起来像"没在跑"）。
+                STATE["fid"] = fid
                 STATE["fingers"] = FINGERS["value"]
                 STATE["g_ms"] = FINGERS["ms"]
                 STATE["g_hz"] = FINGERS["hz"]
@@ -1338,7 +1352,10 @@ def cmp_encode_loop(args):
                 with LOCK:
                     CMPJPG["jpg"] = buf.tobytes()
                     CMPJPG["ver"] = ver
-        time.sleep(0.02)
+        # 0.06 s ≈ 最高 16 次/s 编码。留这个间隔不是为了限帧，而是让出 GIL：
+        # 板上是双核 Cortex-A9，采集/处理/手势/三条推流全是 Python 线程，
+        # 空转 while 会把 GIL 抢得主循环一次 run() 从 3.7 ms 拖到 30 ms 以上。
+        time.sleep(0.06)
 
 
 # ---------------------------------------------------------------- HTTP
@@ -1374,11 +1391,17 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         RAW_CLIENTS[0] += 1
         print("[raw] client connected (%d open)" % RAW_CLIENTS[0])
-        min_dt = 1.0 / max(RAW_FPS[0], 0.1)
         last = -1
         try:
             while not STATE["stop"]:
                 t0 = time.perf_counter()
+                # 每帧实时算：开关对比视图后不用重连也生效。
+                # 对比模式三条流（/raw + /cam + /cmpstd）同时跑，网口只有 100 Mbps，
+                # 主画面 307 KB/帧按 25 fps 推就是 61 Mbps，会把另外两条挤没。
+                _f = RAW_FPS[0]
+                if CMP_ON[0] and _f > 12.0:
+                    _f = 12.0
+                min_dt = 1.0 / max(_f, 0.1)
                 with LOCK:
                     ver = HANDOFF["ver"]
                     out = HANDOFF["output"]
