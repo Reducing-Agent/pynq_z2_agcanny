@@ -186,10 +186,9 @@ STD_INTERVAL = float(os.environ.get("STD_INTERVAL", "0.12"))
 # 直接设 CMPSTD=0 可以整块关掉 ② 号对照图的额外计算（排障用：关掉后画面若恢复，
 # 就证明瓶颈在对照图这一遍 PL，而不是主链）。
 CMPSTD_ON = os.environ.get("CMPSTD", "1") not in ("0", "no", "off", "")
-# CMP_FIT=1：退回"完整画面"模式（object-fit:contain），4:3 一点不裁，
-# 代价是格子会有黑边（笔记本 1080~1366 宽的屏上黑边能占到格子的一半）。
-# 默认 0 = 铺满（cover）。
-CMP_FIT = os.environ.get("CMP_FIT", "0") not in ("0", "no", "off", "")
+# CMP_FILL=1：object-fit:cover，画面糊满整屏。代价是 4:3 的上下（宽屏）
+# 或左右（方屏）会被裁掉一截。默认 0 = contain，画面完整不裁。
+CMP_FILL = os.environ.get("CMP_FILL", "0") not in ("0", "no", "off", "")
 _LAST_STD_T = [0.0]
 _CMPSTD_FAILS = [0]
 # ②号窗格（普通 Canny）每几帧才重算一次。
@@ -418,17 +417,15 @@ body.cmp .grid{display:grid;gap:6px;flex:1 1 auto;min-height:0;
                grid-template-columns:repeat(2,minmax(0,1fr));
                grid-template-rows:repeat(2,minmax(0,1fr));
                align-items:stretch}
-/* 默认铺满：格子占满各自那半屏，画面 object-fit:cover 填满格子。
-   代价是 4:3 会被裁掉一点边（宽屏裁上下、方屏裁左右，两格对称裁，
-   不影响左右对比）。演示要的就是"占满屏幕"，这是唯一能做到的办法 ——
-   摄像头只有 640x480，contain 必然留黑边，而且留出来的黑边在
-   1080~1366 宽的笔记本上能占到格子的一半。
-   想看完整不裁的画面就用 CMP_FILL=0 启动。 */
 body.cmp .pane{display:flex;flex-direction:column;min-width:0;min-height:0;
                overflow:hidden}
+/* 默认 contain：画面完整、不裁边。底部四大块已经隐藏掉，格子拿到了全部高度，
+   所以 contain 也足够大；而 cover 会把 4:3 的上下裁掉一截，
+   现场第一反应是"画面坏了"（2026-11-03 踩到），不值得。
+   真要糊满整屏就用 CMP_FILL=1 启动，切到 cover。 */
 body.cmp .pane img,body.cmp .pane canvas{flex:1 1 0;min-height:0;min-width:0;
-     width:100%;height:100%;object-fit:cover}
-body.cmp.fit .pane img,body.cmp.fit .pane canvas{object-fit:contain}
+     width:100%;height:100%;object-fit:contain}
+body.cmp.fill .pane img,body.cmp.fill .pane canvas{object-fit:cover}
 body.cmp .mon{flex:1 1 0;min-height:0;overflow:auto;
               display:flex;flex-direction:column;justify-content:center}
 body.cmp .cmpane{display:block}
@@ -902,7 +899,7 @@ def render_page():
     # 占位符名字必须和模板里写的一模一样 —— 上一版这里写的是 SRC_A/SRC_B，
     # 模板里却是 SRC_STD，替换不到，结果右上角永远没有画面。
     _std = 'src="/cmpstd"' if CMP_ON[0] else ""
-    _cls = "" if not CMP_ON[0] else ("cmp fit" if CMP_FIT else "cmp")
+    _cls = "" if not CMP_ON[0] else ("cmp fill" if CMP_FILL else "cmp")
     return (PAGE_TEMPLATE
             .replace("<!--MODES-->", build_mode_buttons())
             .replace("<!--CMPCLS-->", _cls)
@@ -1144,8 +1141,12 @@ def process_loop(args):
                             # 光照自适应反而把噪声一起放大了。
                             # _rg 是主画面（AG-Canny）这一帧用的 gain，见上面抄下来的值。
                             _s = _s * max(_rg / 256.0, 1.0) * SIGMA_K
-                            if SIGMA_FLOOR:
-                                # 等效 σ 不低于 AG_HI_MIN/K_HI，等价于高阈值 ≥ AG_HI_MIN
+                            # 等效 σ 不低于 AG_HI_MIN/K_HI，等价于高阈值 ≥ AG_HI_MIN。
+                            # ⚠ 这里以前包在 "if SIGMA_FLOOR:" 里，而那个常量被删了定义
+                            # 却没删引用 —— 运行时 NameError 被下面的 except 接住，
+                            # 连着三次就放弃②号窗格，右上直接黑屏（2026-11-03 现场）。
+                            # 所以现在无条件执行，想关就把 AG_HI_MIN 设成 0。
+                            if AG_HI_MIN > 0:
                                 _s = max(_s, AG_HI_MIN / _canny_k_hi())
                             _LAST_SIGMA[0] = _s
                             # hw_driver 用 _sigma_prev 算阈值，直接换成补偿后的值，
