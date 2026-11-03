@@ -40,6 +40,7 @@
 import argparse
 import json
 import os
+import socket
 import threading
 import time
 from collections import Counter
@@ -107,6 +108,25 @@ SWIPE_TRACKER = [None]    # None = swipe.py 不可用 / --no-swipe，挥手功�
 PROC = [None]
 
 RAW_FPS = [25.0]          # 由 --raw-fps 设置；网口是 100 Mbps，别无脑往高调
+
+# ---- 每条流只允许一个活跃连接（2026-11-03 加）----
+# 每条 MJPEG / 原始字节流都是一个永不返回的 handler，各占一个线程。
+# 浏览器刷新、或者反复点"AGC 对比 ON/OFF"（每次都是整页导航，会重开三条流），
+# 旧连接如果没被干净关掉（半开 TCP、write 阻塞在对端已关的 socket 上），
+# 那个线程就永久挂着，一条一条往上累积。双核 Cortex-A9 上十来条这种线程
+# 就能把主循环饿死 —— 现场表现就是"越点越卡，最后整页不动"，
+# 而且终端上没有任何报错，看起来像程序自己卡死。
+# 做法：新连接进来把 generation +1，旧连接下一轮发现号过期就自己退出。
+STREAM_GEN = {"raw": 0, "cam": 0, "std": 0, "mask": 0}
+
+
+def _take_stream(key):
+    STREAM_GEN[key] = STREAM_GEN.get(key, 0) + 1
+    return STREAM_GEN[key]
+
+
+def _stream_alive(key, gen):
+    return (not STATE["stop"]) and STREAM_GEN.get(key) == gen
 RAW_CLIENTS = [0]         # 当前 /raw 连接数（0 = 浏览器没连上，画面就是黑的）
 # 校准黄框，坐标已换算到 640x480 显示尺寸；None = gesture 不可用时退化隐藏
 CALIB_BOX = [None]
@@ -1175,12 +1195,16 @@ def process_loop(args):
             if now - fps_started >= 0.5:
                 STATE["pipe"] = count / (now - fps_started)
                 count, fps_started = 0, now
-                print("[live] pipe %.1f fps | push %.1f fps | raw#%d | mode %d %s | "
+                # thr = 当前 Python 线程数。这个数只应该在小范围内稳定；
+                # 每刷一次页面 / 每切一次对比视图它就往上涨、而且不回落，
+                # 就说明有 handler 线程卡在半开连接上没回收（这才是"越点越卡"
+                # 的真凶），STREAM_GEN 机制就是用来堵这个的。
+                print("[live] thr %d | pipe %.1f fps | push %.1f fps | raw#%d | mode %d %s | "
                       "filter(PL) %.1f ms (pack %.1f + kernel %.2f) = %.1fx | "
                       "cmp %.1f ms | "
                       "gesture %.1f ms @ %.1f Hz | fingers %s | "
                       "swipe area=%.0f anchor=%d pts=%d dx=%+.2f span=%.2fs%s"
-                      % (STATE["pipe"], STATE["push"], RAW_CLIENTS[0],
+                      % (threading.active_count(), STATE["pipe"], STATE["push"], RAW_CLIENTS[0],
                          STATE["mode_cur"], MODE_NAMES[STATE["mode_cur"]],
                          filter_ms, pack_ms, kernel_ms, sp_live,
                          cmp_ms,
@@ -1435,6 +1459,10 @@ def _tick_push():
 
 class Handler(BaseHTTPRequestHandler):
     disable_nagle_algorithm = True   # 实时流必须关掉 Nagle，否则小包会被攒着延迟发
+    # 每个连接的 socket 超时。不设的话，对端异常断开（拔网线、笔记本合盖、
+    # 浏览器进程被杀）时这条连接既不报错也不关闭，handler 线程就永久挂在
+    # write 上。设了超时，卡住的连接最多挂 20 s 就会抛异常被回收。
+    timeout = 20
 
     def log_message(self, *a):
         pass
@@ -1453,11 +1481,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
+        gen = _take_stream("raw")
         RAW_CLIENTS[0] += 1
         print("[raw] client connected (%d open)" % RAW_CLIENTS[0])
         last = -1
         try:
-            while not STATE["stop"]:
+            while _stream_alive("raw", gen):
                 t0 = time.perf_counter()
                 # 每帧实时算：开关对比视图后不用重连也生效。
                 # 对比模式三条流（/raw + /cam + /cmpstd）同时跑，网口只有 100 Mbps，
@@ -1489,9 +1518,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache, private")
         self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=--jpgboundary")
         self.end_headers()
+        gen = _take_stream("cam")
         last = -1
         try:
-            while not STATE["stop"]:
+            while _stream_alive("cam", gen):
                 with LOCK:
                     ver = STATE["cam_ver"]
                     data = STATE["cam_jpg"]
@@ -1518,9 +1548,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache, private")
         self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=--jpgboundary")
         self.end_headers()
+        gen = _take_stream(key)
         last = -1
         try:
-            while not STATE["stop"]:
+            while _stream_alive(key, gen):
                 with LOCK:
                     data = CMPJPG[key]
                     ver = CMPJPG["ver"]
@@ -1542,9 +1573,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache, private")
         self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=--jpgboundary")
         self.end_headers()
+        gen = _take_stream("mask")
         last = -1
         try:
-            while not STATE["stop"]:
+            while _stream_alive("mask", gen):
                 with LOCK:
                     ver = STATE["mask_ver"]
                     data = STATE["mask_jpg"]
@@ -1829,7 +1861,24 @@ def main():
     threading.Thread(target=cam_encode_loop, args=(args,), daemon=True).start()
     threading.Thread(target=cmp_encode_loop, args=(args,), daemon=True).start()
 
-    srv = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
+    # 端口占用必须先查：旧进程没停掉的话，新的 bind 会失败退出，
+    # 而浏览器连的还是旧进程（旧代码），表现就是"传了新文件却没变化/越来越卡"。
+    _probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    _probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        _probe.bind(("0.0.0.0", args.port))
+    except OSError as exc:
+        print("[live] 端口 %d 已被占用（%s）。先 Ctrl-C 停掉上一个进程再启动，"
+              "否则浏览器连的还是旧代码。" % (args.port, exc))
+        raise SystemExit(1)
+    finally:
+        _probe.close()
+
+    class _Srv(ThreadingHTTPServer):
+        daemon_threads = True      # 主进程退出时不僵在残留线程上
+        allow_reuse_address = True
+
+    srv = _Srv(("0.0.0.0", args.port), Handler)
     print("[live] serving on http://<board-ip>:%d/  (Ctrl+C to stop)" % args.port)
     print("[live] 满分辨率直传：PL 结果 640x480 原始字节，不降采样、不压 JPEG")
     try:
