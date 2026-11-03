@@ -6,9 +6,8 @@
 
 输出：AG_Canny_Poster_A4.pptx  (21.0 x 29.7 cm，一页)
 
-官方要求（指南"六、其它"）：按 AMD 提供的 PPT 模板提供一页英文 PPT 海报，
-  用 A4 纸彩色打印带到决赛现场，**不包含队伍信息**。
-  因此本海报全部为英文，且**不出现队名 / 学校 / 成员姓名**。
+版式说明：按 AMD 提供的 PPT 模板排成一页英文 PPT 海报（A4 竖版）。
+  本海报全部为英文，且**不出现队名 / 学校 / 成员姓名**。
 """
 import os
 
@@ -142,8 +141,8 @@ def main():
     tf = txbox(slide, M.cm, 3.30, CW - 2.0, 1.05)
     para(tf,
          "A four-stage streaming pipeline that turns a raw 640×480 grayscale stream into a "
-         "per-pixel edge feature vector — and re-tunes its own gain and Canny thresholds "
-         "every frame, so edge quality holds up when the lights change.",
+         "per-pixel edge feature vector — with per-frame AGC gain and noise-derived Canny "
+         "thresholds, so edge quality holds up when the lights change.",
          9.6, INK2, first=True, space_after=0, line=1.25)
 
     # chips
@@ -273,8 +272,8 @@ def main():
     # col 1 — adaptive threshold
     section_title(slide, M.cm, By, bw2, "Noise-Aware Adaptive Threshold")
     tf = txbox(slide, M.cm, By + 0.78, bw2, 1.0)
-    para(tf, "PL measures per-pixel noise with an Immerkær operator and returns σ through "
-             "an ap_return register; ARM converts it to Canny thresholds once per frame.",
+    para(tf, "PL accumulates an Immerkær noise estimate on the 3×3 path and returns σ via "
+             "ap_return; sampled on demand and reused across frames to set Canny thresholds.",
          8.0, INK2, first=True, space_after=0, line=1.2)
     kv_table(slide, M.cm, By + 1.85, bw2, [
         ("HIGH ≈ 7.56σ", "sweet spot", True),

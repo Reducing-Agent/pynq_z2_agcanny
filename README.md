@@ -18,13 +18,16 @@ reads directly from DDR through its own AXI master port and completes a
 ```
 5x5 separable Gaussian denoise  ->  Sobel gradient + direction quantisation
                                 ->  non-maximum suppression
-                                ->  dual-threshold hysteresis
+                                ->  dual threshold + local 3x3 connection
 ```
 
 Each pixel is read once and written once. Intermediate results never return
-to DDR. The IP also estimates the per-frame noise level (sigma) in hardware;
-the PS uses it to update gain and the Canny thresholds every frame, forming a
-feed-forward lighting-adaptive loop with no human intervention.
+to DDR. Noise level (sigma) is estimated in hardware on the 3x3 operator path
+(modes 1-8) and returned via `ap_return`; the four-stage pipeline (modes 9-11)
+does not emit sigma, so the demo samples it with one extra mode-1 call per
+second and reuses the value across frames. The PS updates the AGC gain every
+frame from the frame mean and derives the Canny thresholds from the latest
+sigma (HIGH ~= 7.56 sigma).
 
 **12 processing modes** are switchable at run time by writing one register —
 no resynthesis, no bitstream reload.
@@ -50,7 +53,7 @@ writes back. Switching between them costs nothing.
 | Kernel time, modes 9-11 (full four-stage fusion) | 3.655 - 3.661 ms (1.19 cycles/pixel) |
 | II=1 theoretical floor | 3.072 ms |
 | Achieved fraction of the floor | 94.3% (single operator) / 84.0% (fusion) |
-| End-to-end including ARM packing | ~13.6 ms (~73 fps) |
+| Processing chain incl. ARM packing, excl. network push | ~13.6 ms (theoretical ~73 fps, not an end-to-end frame rate) |
 | LUT / FF / BRAM / DSP (full project) | 8626 (16.21%) / 10331 (9.71%) / 15 / 32 |
 | WNS / WHS | +0.435 ns / +0.020 ns, 0 failing endpoints |
 

@@ -167,8 +167,8 @@
     <h1>AG-Canny: An <em>Illumination-Adaptive</em> Real-Time<br>Canny Vision Front-End on PYNQ-Z2</h1>
     <div class="sub">
       A four-stage streaming pipeline that turns a raw 640&times;480 grayscale stream into a
-      per-pixel edge feature vector &mdash; and re-tunes its own gain and Canny thresholds every frame,
-      so edge quality holds up when the lights change.
+      per-pixel edge feature vector &mdash; with per-frame AGC gain and noise-derived Canny
+      thresholds, so edge quality holds up when the lights change.
     </div>
     <div class="chips">
       <span class="chip acc">640&times;480 @ 30 fps</span>
@@ -281,9 +281,9 @@
       <div style="flex:1;">
         <h2>Noise-Aware Adaptive Threshold</h2>
         <div class="panel plain">
-          <p>PL measures per-pixel noise with an Immerk&aelig;r operator and returns
-            <strong>&sigma;</strong> through an <code>ap_return</code> register; ARM converts it to
-            Canny thresholds once per frame.</p>
+          <p>PL accumulates an Immerk&aelig;r noise estimate on the 3&times;3 path and returns
+            <strong>&sigma;</strong> via <code>ap_return</code>; sampled on demand and reused
+            across frames to set Canny thresholds.</p>
           <table style="margin-top:2mm;">
             <tr><th class="k">Rule</th><th class="num">Result</th></tr>
             <tr><td>HIGH &asymp; 7.56&sigma;</td><td class="num hl">sweet spot</td></tr>
