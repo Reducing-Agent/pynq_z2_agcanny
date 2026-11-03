@@ -1,6 +1,5 @@
-# AXI burst / m_axi pragma（性能主战场）
+# AXI burst / m_axi pragma（性能主要瓶颈）
 
-> 本文件覆盖本项目最关键的一次性能修复。
 > 案例 10 把本项目从 20.57 ms 修到 3.258 ms（**6.31 倍**）；
 > 案例 16 是"HLS 全绿但 Vivado 才炸"的典型。
 
@@ -114,7 +113,7 @@ ERROR: [BD 41-241] Validation failed for parameter 'My S00_READ_ACCEPTANCE'.
    `max_*_burst_length` 上限 **16**（写 256 也只会被拆成若干个 16-beat），
    `num_*_outstanding` 上限 **32**。
 2. **HLS 通过 ≠ 能进 Vivado**。凡是改了 `m_axi` 相关 pragma，
-   必须一路跑到 Vivado `generate_target` 才算验过 ——
+   必须一路跑到 Vivado `generate_target` 验证；
    只跑到 `package` 会得到表面上成功的结果。
 
 ---

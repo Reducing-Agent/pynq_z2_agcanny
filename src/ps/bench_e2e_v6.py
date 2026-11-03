@@ -7,9 +7,9 @@
 validate_v6.py 只量了 PL 核内（ap_start -> ap_done），v6 是 3.75 ms，
 v5 是 3.78 ms —— **几乎没变**。拆带宽墙的提速没有兑现。
 
-但 v6 真正省下的钱**不在 PL 里**：
+v6 省下的时间在 ARM 打包这一段：
   v5 端到端 19.72 ms，其中约 16 ms 是 ARM 把 BGR 打成 uint32（4 字节/像素）
-  v6 改成 cv2.cvtColor + 一次连续拷贝（1 字节/像素）→ 打包应大幅下降
+  v6 改成 cv2.cvtColor + 一次连续拷贝（1 字节/像素）→ 打包耗时下降
 
 所以本脚本把端到端拆成四段，并且**在同一块板子上同时跑 v5 老打包方式和
 v6 新打包方式**，直接给出 A/B 对照，这组数可以进报告。
@@ -188,7 +188,7 @@ def main():
 
     # ---------- 5) 附加实验：non-cacheable 缓冲 ----------
     # cacheable=True 时 ARM 写 DMA 缓冲会 write-allocate（先把 64B 读进来再写），
-    # 对"只写不读"的输入缓冲是纯浪费。non-cacheable 直接流式写 + flush 变空操作。
+    # 对"只写不读"的输入缓冲没有必要。non-cacheable 直接流式写 + flush 变空操作。
     print("\n" + "=" * 72)
     print("附加实验：缓冲改成 non-cacheable（ARM 写入不再 write-allocate）")
     print("=" * 72)

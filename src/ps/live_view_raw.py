@@ -955,7 +955,7 @@ def make_processor(args, kind):
     kind="sw" -> ARM 纯软件（filters.SoftwareProcessor，与 HLS 逐像素一致的参考实现）
 
     两者接口完全一致：都是 .name / .run(mode, frame_bgr) -> uint8，
-    所以流水线里可以随时互换，这正是现场 A/B 对比的基础。
+    所以流水线里可以随时互换，可以在现场做 A/B 对比。
     """
     if kind == "sw":
         return SoftwareProcessor()
@@ -1270,8 +1270,8 @@ def process_loop(args):
                 count, fps_started = 0, now
                 # thr = 当前 Python 线程数。这个数只应该在小范围内稳定；
                 # 每刷一次页面 / 每切一次对比视图它就往上涨、而且不回落，
-                # 就说明有 handler 线程卡在半开连接上没回收（这才是"越点越卡"
-                # 的真凶），STREAM_GEN 机制就是用来堵这个的。
+                # 就说明有 handler 线程卡在半开连接上没回收（"越点越卡"
+                # 的根因），STREAM_GEN 机制就是用来堵这个的。
                 print("[live] thr %d | pipe %.1f fps | push %.1f fps | raw#%d | mode %d %s | "
                       "filter(PL) %.1f ms (pack %.1f + kernel %.2f) = %.1fx | "
                       "cmp %.1f ms | "
@@ -1343,8 +1343,8 @@ def gesture_loop(args):
         next_ok = time.perf_counter() + min_gap
 
         # 面积阈值：这是治"空手被判成 1"的关键。
-        # 画面里一小块肤色噪点也会被 findContours 当成手，进而数出 1 根手指。
-        # 要求轮廓面积占到检测图的 --min-area 以上才算真的有手，否则一律判 0。
+        # 画面里一小块肤色噪点也会被 findContours 当成手，数出 1 根手指。
+        # 要求轮廓面积占到检测图的 --min-area 以上才算有手，否则一律判 0。
         try:
             area = float(detail.get("area", 0) or 0)
         except Exception:
@@ -1513,7 +1513,7 @@ def cmp_encode_loop(args):
             if not warned:
                 print("[cmp] encode loop error (kept alive):", exc)
                 warned = True
-        # 0.06 s ≈ 最高 16 次/s 编码。留这个间隔不是为了限帧，而是让出 GIL：
+        # 0.06 s ≈ 最高 16 次/s 编码。留这个间隔是为了让出 GIL：
         # 板上是双核 Cortex-A9，采集/处理/手势/三条推流全是 Python 线程，
         # 空转 while 会把 GIL 抢得主循环一次 run() 从 3.7 ms 拖到 30 ms 以上。
         time.sleep(0.06)

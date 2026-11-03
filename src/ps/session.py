@@ -50,9 +50,9 @@ def open_camera(index):
             # 2026-10-28 probe_camera.py 实测（C270 + PYNQ-Z2，每项 3 秒）：
             #     640x480 默认 YUYV   29.9 fps
             #     640x480 MJPEG      30.0 fps   ← 最佳，采用
-            #     640x480 BUFFERSIZE=1 15.0 fps ← 坑！单缓冲时 V4L2 要等用户
+            #     640x480 BUFFERSIZE=1 15.0 fps ← 注意：单缓冲时 V4L2 要等用户
             #                                      取走帧才开始下一次曝光，
-            #                                      等于把流水线砍半。**不要设**
+            #                                      等于把流水线砍半，代码里不设这一项
             #   MJPEG 的额外好处：USB 带宽从 640*480*2 B 降到约 1/5，
             #   给 PL 的 HP 口留出余量（我们刚因为带宽墙折腾过一整轮）。
             #   Windows 上不设 fourcc：CAP_DSHOW 下行为不同，且 PC 不是瓶颈。

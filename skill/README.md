@@ -45,11 +45,6 @@ skill/
 │   ├── 01_hw_sw_partition.md  从算法推导软硬件划分
 │   ├── 02_report_bottleneck.md 从综合报告定位瓶颈（含反例证伪步骤）
 │   └── 03_golden_reference.md 生成独立黄金参考并对拍
-├── prompts/             提示词工作流（经本项目验证的模板 + 使用说明）
-│   ├── README.md              三条通用原则：要判据 / 先找反例 / 回读源码
-│   ├── 01_hw_sw_partition.md  从算法推导软硬件划分
-│   ├── 02_report_bottleneck.md 从综合报告定位瓶颈（含反例证伪步骤）
-│   └── 03_golden_reference.md 生成独立黄金参考并对拍
 ├── scripts/
 │   ├── build_hls.tcl            HLS IP → 位流 + .hwh 一键构建
 │   ├── run_hls_cli.md           命令行跑 Vitis HLS（不用 GUI）

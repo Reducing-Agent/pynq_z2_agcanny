@@ -1,15 +1,15 @@
 # v8 HLS 一键构建 + 自检（Vitis HLS 命令行）
 #
-# 为什么要有这个脚本：复现包要求"赛事方以队伍提交的容器与脚本抽查复现"。
+# 复现包要求"赛事方以队伍提交的容器与脚本抽查复现"。
 # 只在 IDE 里点鼠标的流程没法复现，必须有一条命令行路径。
 #
 # 用法（Vitis 2026.1 自带的 shell，或把 vitis_hs 加进 PATH）：
 #     vitis_hs -f run_hls_v8.tcl
 #
-# 依次做四件事，任何一步失败都会打印醒目的 FAIL 并不再往下走：
+# 依次做四件事，任何一步失败都会打印 FAIL 并不再往下走：
 #     1. csim    C 仿真（跑 tb_rgb2gray_hls_v8.cpp，回归 + MODE_DIR + sigma）
 #     2. csynth  综合（看 II / LUT / DSP / 时序估计）
-#     3. cosim    C/RTL 联合仿真（**这一步最容易暴露"综合过了但行为变了"**）
+#     3. cosim    C/RTL 联合仿真（这一步会暴露"综合过了但行为变了"）
 #     4. export  出 IP catalog，供 Vivado 导入
 #
 # cosim 不能跳：v7 时就出现过"csynth 全绿但寄存器地址和驱动想的不一致"，

@@ -57,7 +57,7 @@ REG_CTRL = 0x00
 #        XRGB2GRAY_CONTROL_ADDR_HEIGHT_DATA 0x20
 #        XRGB2GRAY_CONTROL_ADDR_MODE_DATA   0x28
 #        XRGB2GRAY_CONTROL_ADDR_GAIN_DATA   0x30
-#    !! 换任何一版位流都要重抄一遍。硬编码成 v7 的 0x10/0x18/0x20/0x28 时，
+#    注意：换任何一版位流都要重抄一遍。硬编码成 v7 的 0x10/0x18/0x20/0x28 时，
 #       width 会写进 sigma（只读）-> 静默无效，height 写进 width，
 #       表现是"图像只对上半部分生效"，极难排查。
 REG_SIGMA = 0x10         # ap_return，只读，PL 的 Σ|I⊛N|
@@ -66,7 +66,7 @@ REG_HEIGHT = 0x20
 REG_MODE = 0x28
 REG_GAIN = 0x30          # v7 新增：Q8.8 定点增益
 # v8.1 新增：Canny 双阈值 (HIGH<<8)|LOW，排在 gain 之后。
-#   **预期**偏移 0x38 —— 但这只是预期！v8.1 位流生成后的第一件事
+#   **预期**偏移 0x38 —— 但这只是预期，v8.1 位流生成后的第一件事
 #   就是 grep xrgb2gray_hw.h 里的 ADDR_THRESH_DATA 确认。
 #   （v8 相对 v7 整体后移过一格，用旧驱动配新位流会把 width 写进只读的 σ，
 #     表现是"画面只对上半部分生效"—— 别让这事再发生一次。）
@@ -74,7 +74,7 @@ REG_THRESH = 0x38
 
 # ---- v8 模式编码 ----
 # bit 0..3 = 算子号，bit 4 = FLAG_AGC，bit 5 = FLAG_SIGMA
-# （PL 其实不看这两个 flag，它们只是给驱动自己记的。PL 永远执行
+# （PL 不看这两个 flag，它们只是给驱动自己记的。PL 永远执行
 #  out = clamp((x*gain)>>8)，gain=256 时严格直通。）
 FLAG_AGC = 16
 FLAG_SIGMA = 32
@@ -197,7 +197,7 @@ BIT_MD5_PREFIX = {".bit": "6b5fd2f9", ".hwh": "9b7407a3"}
 #     v6：.bit f7760df3 / .hwh e8933626   （1 B/px 灰度输入，无 AGC）
 #     v5：.bit 126f1fc6 / .hwh 2cf60392   （4 B/px RGB 打包，灰度在 PL 内算）
 #     流程固定：出新 bit -> 算 MD5 -> 改这里 -> 再上板。
-#     !! 各版 .bit 大小完全相同（4045771 B），只有 MD5 能区分
+#     注意：各版 .bit 大小完全相同（4045771 B），只有 MD5 能区分
 SKIP_BIT_MD5 = os.environ.get("RGB2GRAY_SKIP_MD5", "") not in ("", "0", "false", "False")
 
 # 排障开关：设 RGB2GRAY_NO_CACHE_MAINT=1 可跳过 cache 维护，用于 A/B 对比
@@ -466,8 +466,8 @@ class HardwareProcessor:
         #   - 启动前 flush  _out_buf：清掉可能残留的脏行，防止它在 PL 写完之后
         #                            才被延迟回写，把 PL 的新鲜输出覆盖掉
         # 此前这份驱动**完全没做这一步**，之所以一直没出问题，是因为本平台的
-        # CMA 映射行为恰好把数据推到了 DDR —— 那是运气，不是设计。
-        # 实测代价约 0.48 ms/帧（端到端 19.72 ms 的 2.4%），换取正确性，值得。
+        # CMA 映射行为恰好把数据推到了 DDR。
+        # 实测代价约 0.48 ms/帧（端到端 19.72 ms 的 2.4%），换取正确性。
         #
         # 计时归类：cache 维护属于"把数据交给 PL"的 ARM 侧开销，
         # 故并入 last_pack_ms，**last_pl_ms 仍保持纯核内口径（3.78 ms）**，
@@ -575,7 +575,7 @@ class HardwareProcessor:
 
         两遍等价于 [1,4,6,4,1]⊗[1,4,6,4,1]/256，σ 从 0.85 抬到 1.2。
 
-        历史沿革（别再照抄旧说法）：
+        历史沿革：
           v7 时代这里写着"5x5 高斯没做成 PL 算子"，理由是"会改边界语义、
           让 120 组回归作废、25 项 adder tree 威胁 WNS"。
           **v8.1 已经把它做进去了**（MODE_GAUSS5 = 9），办法是**另开一条
@@ -583,7 +583,7 @@ class HardwareProcessor:
             · 边界语义：只有 op 9..11 受影响，op 0..8 仍是外一圈
             · 回归：223 组板端对拍一条没作废
             · 时序：高斯用可分离两级 [1,4,6,4,1]，每级只有 5 个加法器
-          **v8.2 更进一步**：四级融合成一条流水线（高斯→Sobel→NMS→滞后），
+          **v8.2 改为**：四级融合成一条流水线（高斯→Sobel→NMS→滞后），
           一趟访存出边缘，不再需要"先跑 GAUSS5 再跑 CANNY"两趟。
           代价是边界从外两圈变成外四圈，最小尺寸从 5x5 变成 9x9。
           现在这个函数保留下来是为了**对照**（级联 vs 原生链的结果

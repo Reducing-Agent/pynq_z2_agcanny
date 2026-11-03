@@ -49,34 +49,34 @@
 #
 文件                                     字节 MD5(32位)                           档    说明
 ----------------------------------------------------------------------------------------------------------------------
-check_kit.py                         8843 537014f33023938d2cff9efe4910fa3d   A    上板第一件事：验位流 MD5
-control.py                           4930 f43c32d9bd6fd6a77ff5607f69aca06c   A    网页控制接口
-filters.py                          16666 8ec4909b71b2ed4dbe4006d701d2e9b1   A    黄金参考；对拍与 SIM 都以此为准
-gesture.py                          38321 d44a14c6f704475cb950600cdcc8ca60   A    手势识别（严格版，勿用软件组那版覆盖）
-hw_driver.py                        39018 3480aec387c905e2cdf5e4705ccc897b   A    PL 驱动（寄存器/cache/MD5/AGC/sigma 全在这）
-live_view_raw.py                   109190 87cb060d6a7624fd122b628040bc9cd6   A    四线程网页演示主程序（含 2x2 对比视图）
+check_kit.py                         8828 e97a4c33a383ab546950d873b210e573   A    上板第一件事：验位流 MD5
+control.py                           4810 3618b406dfa3ec0e54e35e0d5d655c0e   A    网页控制接口
+filters.py                          16672 14bf9849c095634e934a654842c06fbb   A    黄金参考；对拍与 SIM 都以此为准
+gesture.py                          38309 a9a6581366bb8a09504d0d16d24a13c8   A    手势识别（严格版，勿用软件组那版覆盖）
+hw_driver.py                        38947 37754f9033709e50e0988ce38ecfea92   A    PL 驱动（寄存器/cache/MD5/AGC/sigma 全在这）
+live_view_raw.py                   109145 67bb6454a467055a88debe6a140f1b5c   A    四线程网页演示主程序（含 2x2 对比视图）
 rgb2gray.bit                      4045771 6b5fd2f907b7214a528530dcca6b418a   A    v8.2b 位流（burst 修复版，勿用旧 v8.2 e9645754）
 rgb2gray.hwh                       266281 9b7407a3772b4d2800d00b6d65ba751a   A    Overlay 描述文件，必须与 .bit 同名
-session.py                          10479 0a6aa6812f881c95d33c80a3a512f7b2   A    会话状态机
+session.py                          10493 0e6fdb9ae6db88ac398d1b009984de24   A    会话状态机
 start_web.sh                         1210 8352a3999ba5379b21b65e17cb7c6d9f   A    一键起网页演示（内部带 MIN_ROUGH=1.07，别手工敲漏）
 swipe.py                             5916 2ee08c6024acae25bb2eeafb2933eb5a   A    挥手判据
-validate_v8.py                      41042 01f0ff4c2d7ed94df1eadc69e40eea8f   A    12 模式回归 + 创新证据采集
-_diag_fingers.py                     4562 b919c2e733db37c93e391d29b3732218   B    五指现场诊断：实时打印候选块 solid/ROUGH/asp 与拒因
+validate_v8.py                      40934 a240fa9daf2dd8ecd158b22c79cbd860   A    12 模式回归 + 创新证据采集
+_diag_fingers.py                     4562 8ac1ab3f063e7884ef25212457b6e2c2   B    五指现场诊断：实时打印候选块 solid/ROUGH/asp 与拒因
 _smoke_calib.py                      1307 e5a8162aba35f4c5b54bfdf147e8fd3d   B    校准自测 4 例
 _smoke_dir.py                        3158 8a310fd4f477a3da1d69c086f182a4cb   B    挥手方向自测 13 例
 _smoke_page.py                        728 ace264b0eac80b82ffc943212f4b774e   B    网页自测
 _smoke_swipe.py                      5201 f2e2976d472eb211c9f6f342cb1900a8   B    挥手自测 12 例
 _smoke_track.py                      7024 786cf94db95f84135bb90296c559c5db   B    手势跟踪自测 6 例
-bench_e2e_v6.py                      9389 017ae9599caedfeff5ee09f266806117   B    端到端 bench（v6 口径，对照用）
-bench_fusion_5pass.py                6411 0a31710c5d990bb6d264060ea94042e3   B    融合 vs 多趟：5 趟线性实验（坐实融合倍率）
+bench_e2e_v6.py                      9385 aa18c8e7a998dfab7592812af560dbce   B    端到端 bench（v6 口径，对照用）
+bench_fusion_5pass.py                6397 a0e8f61628a405bbfb0be8c449dbe283   B    融合 vs 多趟：5 趟线性实验（坐实融合倍率）
 diag_fps.py                          4186 3ba550f23bb435756e5ad790323c183e   B    帧率分解 PIPE/PUSH/CLIENT
 diag_read.py                         5423 f1cbc840444629c4abd635f7d7287d3a   B    读回校验排障
-diag_slow.py                         6689 deb75b4a2d055c71f0d842a1e6a180f9   B    640x480 耗时分解
+diag_slow.py                         6683 baa333c88933eecc857dd26dd217abc7   B    640x480 耗时分解
 probe_camera.py                      4689 0b387383001aa10561b73b05042f1245   B    相机探测（确认 MJPG / 分辨率）
 probe_read.py                        6536 e55e974b8141467bb1b5b00dec21f12e   B    读回排障
 repro_5fingers.py                    2767 a6b93df362c3058ea2cf2b13524ac51f   B    5 指复现脚本（软件组 11-01 交付，合成手 1~5 指离线自测）
-sigma.py                            11469 a122bda30f23d9e4ac8ccc4cab697cf9   B    sigma 标定 / 照度扫描（创新 15 分证据）
-BOARD_CHECKLIST_1030.md             14388 9c180b76cce4c376f99b609cb7a3c756   C    上板 8 步（现场速查）
-README_上板说明_v82.md                  23435 432c692c9ba10056856c6ce7c0e3f4fa   C    完整说明与排障手册
+sigma.py                            11366 b6dcc6dd807ad044240b487bf16bc1dd   B    sigma 标定 / 照度扫描（创新 15 分证据）
+BOARD_CHECKLIST_1030.md             14249 12025b75f7be854f3a92c9fa8154748a   C    上板 8 步（现场速查）
+README_上板说明_v82.md                  23139 6dfceae80e454830f58a521f122d0ad3   C    完整说明与排障手册
 ----------------------------------------------------------------------------------------------------------------------
 共 29 个文件：A 最小演示集 12 个 / B 排障取证 15 个 / C 文档 2 个

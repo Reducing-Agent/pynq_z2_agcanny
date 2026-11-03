@@ -12,7 +12,7 @@
     area%   solid   ROUGH   asp   判定/拒因
   其中 solid=密实度  ROUGH=周长比  asp=长短边比
 
-重点看两块：
+两块要核对：
   * 最大的那块如果是你的手，但判定 REJECT —— 看拒因是哪一关
   * 选中手之后 fingers 是不是 5，不是就看 tips / gaps 两个数
 """

@@ -7,8 +7,8 @@
 # 前置条件：D:/vitis/RGB2gray/rgb2gray/hls/impl/ip 里的 v8 IP 已经拷进
 #           D:/vivado/ip_repo/rgb2gray（v7 原版已备份到 rgb2gray_v7_bak_1028）
 #
-# 为什么敢自动跑：v8 相对 v7 只在 s_axi_control 里**多了一个只读的
-#   ap_return 寄存器**，AXI-Lite 总线接口（端口名、位宽、地址空间）完全没变，
+# 自动跑的依据：v8 相对 v7 只在 s_axi_control 里多了一个只读的
+#   ap_return 寄存器，AXI-Lite 总线接口（端口名、位宽、地址空间）完全没变，
 #   所以 BD 不需要改连线，只需要"升级被锁定的 IP"。
 #
 # 出问题的回滚：把 ip_repo/rgb2gray 换回 rgb2gray_v7_bak_1028 再跑一遍即可。
@@ -46,8 +46,8 @@ if {[llength $bd] > 0} {
 }
 
 # ---------------------------------------------- 4. 综合 + 实现 + 写位流
-# reset_run 保证不会因为缓存的旧网表而静默用了 v7 的 IP —— 这正是
-# "换了 IP 但位流没变" 的典型成因。
+# reset_run 避免 Vivado 拿缓存的旧网表静默生成 v7 的位流，
+# 也就是"换了 IP 但位流没变"。
 reset_run synth_1
 launch_runs impl_1 -to_step write_bitstream -jobs 8
 wait_on_run impl_1

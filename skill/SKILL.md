@@ -12,7 +12,7 @@
 ## 1. 这套技能解决什么问题
 
 在一个"ARM + FPGA 异构 SoC"上，把一个**逐像素的图像算法**搬到可编程逻辑里，
-并且**真的跑出性能**（而不是"功能对了但比 ARM 慢"）。
+并且跑出性能（不是“功能对了但比 ARM 慢”）。
 
 适用边界：
 
@@ -46,7 +46,7 @@
 
 两者都真实，**不可混用**。本项目：IP 本体 vs 全工程 LUT 差约 600。
 
-### 2.3 定位性能问题的唯一正确姿势：控制变量 + 找反例
+### 2.3 定位性能问题：控制变量 + 找反例
 
 > 凡"工具全绿但结果不对"，必须上板实测 + 控制变量法定位；
 > 并且**先找反例证伪自己的假设**。
@@ -67,7 +67,7 @@
 | `01_environment.md` | 1, 2, 9 | 环境：器件许可、板卡文件、中文路径 |
 | `02_performance_method.md` | 3, 4, 5, 6, 7 | 性能测量方法论（含"建议本身也要验证"） |
 | `03_bitstream_version.md` | 8 | 如何判断位流新旧（最容易静默出错的一处） |
-| `04_hls_axi_burst.md` | **10**, 16 | **AXI burst / m_axi pragma**（性能主战场） |
+| `04_hls_axi_burst.md` | **10**, 16 | **AXI burst / m_axi pragma**（性能主要瓶颈） |
 | `05_hls_syntax_traps.md` | 11, 12, 13, 14, 15 | HLS 语言与接口陷阱 |
 | `06_script_drift.md` | **17** | 脚本文案过期：判定对、说明错 |
 
@@ -84,11 +84,11 @@
 | `scripts/run_hls_cli.md` | 命令行跑 Vitis HLS 三步（不用 GUI） |
 | `scripts/mirror_ab.py` | **改 HLS 循环结构前的 Python 对拍模板** |
 | `scripts/update_bitstream.py` | 新位流 → 板端交付包，一键同步 MD5（三处） |
-| `templates/case_template.md` | 大模型协作案例的写作模板（含三段式判定标准） |
+| `templates/case_template.md` | 大模型协作案例的写作模板（含五段判定标准） |
 
-`scripts/mirror_ab.py` 是本包最主要的工具：它把"改循环结构"从
-"烧位流上板才发现边界错了"变成"PC 上几分钟、702 例逐字节对拍"。
-（本文件是 op 0~11 的真实实现，可直接运行；头部写了怎么改成你自己的。）
+`scripts/mirror_ab.py` 是本包最主要的工具：改循环结构先在 PC 上对拍，
+不必烧位流上板才发现边界错了 —— 几分钟、702 例逐字节比对。
+（它跑的是 op 0~11 的真实实现，可直接运行；头部写了怎么改成你自己的。）
 
 ---
 
@@ -99,7 +99,7 @@
 3. **检查 csynth 报告的 `M_AXI Burst Information`**，主循环必须是 `Inferred`
 4. 装 IP → `build_hls.tcl` 出位流 → **重算 MD5 并同步三处**
 5. 上板：`check_kit.py` → `validate_v8.py` → `diag_slow.py`
-6. 只有 `diag_slow` 的 cyc/px 收敛到 ~1 才算真的完成
+6. `diag_slow` 的 cyc/px 收敛到 ~1 即完成
 
 ---
 

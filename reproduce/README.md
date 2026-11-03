@@ -5,7 +5,7 @@
 
 ---
 
-## 0. 环境与版本（先固化，否则一切免谈）
+## 0. 环境与版本（先固化）
 
 | 项 | 版本 / 值 |
 |---|---|
@@ -27,7 +27,7 @@ Vivado 会把 Zynq-7000 **过滤隐藏**，报 `no licensed parts`
 
 ```powershell
 cd reproduce
-. .\env.ps1              # 设环境（注意是 dot-source）
+. .\env.ps1              # 设环境（dot-source）
 .\run_hls.ps1            # compile → csim → cosim → package，约 12 min
 vivado -mode batch -source .\build_bitstream.tcl   # 出 .bit + .hwh，约 10 min
 ```
@@ -153,7 +153,7 @@ python3 live_view_raw.py --display web
 
 ---
 
-## 7. 已知不可用项（避免复现时白费力气）
+## 7. 已知不可用项
 
 - **overlay 没有 HDMI**：`.hwh` 里 hdmi/vdma/vtc 各 0 次。
   `--display hdmi|both` 会**启动即崩**，只能走 `--display web`。

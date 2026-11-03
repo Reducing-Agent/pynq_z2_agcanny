@@ -13,7 +13,7 @@
 以前这份表是手抄的，结果 10-30 那天改了 validate_v8.py / hw_driver.py /
 live_view_raw.py / sigma.py 四个文件，却漏了更新这里 —— 上板一跑，
 六个文件全报 WRONG，而**真正错的只有 check_kit.py 自己**。
-更危险的是它当时期望的位流是 v8.1（4f5ee693），谁要是照着"修正"
+它当时期望的位流还是 v8.1（4f5ee693），谁要是照着"修正"
 就会把 v8.2 位流换成 v8.1。
 
 现在以 FILES.txt 为唯一依据（由 `_gen_files_txt.py` 生成），
@@ -42,7 +42,7 @@ FALLBACK = {
     "control.py":      (   3391, "845b0885"),
 }
 
-# 最关键的两条：位流版本错了后面全是白跑
+# 先看这两条：位流版本错了后面全是白跑
 BIT_EXPECT = {"rgb2gray.bit": "6b5fd2f9", "rgb2gray.hwh": "9b7407a3"}
 
 # 软件组那套的文件：出现在同一目录就会被 import 抢走，且接口不兼容

@@ -222,8 +222,8 @@ def dut_path5x5(inp, w, h, op, gain, thresh):
 def gauss5_np(g):
     """零填充 5x5 二项式高斯，代码路径与 DUT 的流式滑窗完全不同。
 
-    必须**分两步 >>4**，不能一次 >>8：DUT 是可分离两级，
-      中间结果 hconv 被截成 8 bit 再喂给第二级，精度损失是真实存在的。
+    必须分两步 >>4，不能一次 >>8：DUT 是可分离两级，
+      中间结果 hconv 被截成 8 bit 再喂给第二级，有精度损失。
       写成一次 >>8 会在噪声图上随机差 1。
     """
     H0, W0 = g.shape
@@ -370,7 +370,7 @@ def main():
                 extra += 1
                 print("  [FAIL] 外四圈非0: %dx%d op=%d，%d 个像素非 0" % (w, h, op, nz))
 
-    # 附加 2：GAUSS5 必须是真的平滑（内部区 std 下降）
+    # 附加 2：GAUSS5 平滑（内部区 std 下降）
     import statistics
     inp = rng.randint(0, 256, size=(24, 32)).astype(np.uint8).ravel().tolist()
     g5 = dut_path5x5(inp, 32, 24, MODE_GAUSS5, GAIN_UNITY, CANNY_THRESH_DEFAULT)
@@ -391,7 +391,7 @@ def main():
     if mid != 77:
         extra += 1
 
-    # 附加 4：v8.2 的关键要求 —— CANNY 必须自带去噪（对比 v8.1 的无高斯版本）
+    # 附加 4：CANNY 自带去噪（对比 v8.1 的无高斯版本）
     inp = rng.randint(0, 256, size=(24, 32)).astype(np.uint8).ravel().tolist()
     noisy = (rng.randint(0, 256, size=(24, 32)).astype(np.uint8) // 8).ravel().tolist()
     mix = [min(255, inp[i] + noisy[i]) for i in range(32 * 24)]

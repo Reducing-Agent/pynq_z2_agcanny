@@ -1,6 +1,6 @@
 # 只跑 csynth，看 II / latency / 资源 / 时序估计
 # 用途：2026-10-30 上板实测 op 1~11 全是 20.57 ms（II=1 地板 3.072 ms 的 6.7 倍），
-#       GRAY 却是 3.222 ms。需要确认主循环的真实 II 到底是多少。
+#       GRAY 却是 3.222 ms。需要确认主循环的真实 II。
 #
 # 用法：vitis_hs -f csynth_only_v82.tcl
 
