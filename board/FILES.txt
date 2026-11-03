@@ -54,7 +54,7 @@ control.py                           4930 f43c32d9bd6fd6a77ff5607f69aca06c   A  
 filters.py                          16666 8ec4909b71b2ed4dbe4006d701d2e9b1   A    黄金参考，对拍与 SIM 都靠它
 gesture.py                          38327 03975657e675a850fe81839a24dc25c7   A    手势识别（严格版，勿用软件组那版覆盖）
 hw_driver.py                        39024 a89ed479e1c91074ae714fc737a12a43   A    PL 驱动（寄存器/cache/MD5/AGC/sigma 全在这）
-live_view_raw.py                     94570 1623f359e9c88ea5a91e7773e662e689   A    四线程网页演示主程序
+live_view_raw.py                     95434 4f7f73417620a37021eea00fa28fcf75   A    四线程网页演示主程序
 rgb2gray.bit                      4045771 6b5fd2f907b7214a528530dcca6b418a   A    v8.2b 位流（burst 修复版，勿用旧 v8.2 e9645754）
 rgb2gray.hwh                       266281 9b7407a3772b4d2800d00b6d65ba751a   A    Overlay 描述文件，必须与 .bit 同名
 session.py                          10479 0a6aa6812f881c95d33c80a3a512f7b2   A    会话状态机

@@ -130,27 +130,34 @@ DIFF_GAIN = 3
 # AG-Canny 仍能出干净边缘 —— 这一屏就是"光照自适应"最直观的一击，
 # 录视频和答辩都靠它。代价：每帧多两次 PL 调用，只在这个视图里付。
 # ---------------------------------------------------------------- AGC 对比视图
-# 开对比时页面变成 2x2 四窗格：
-#   左上 INPUT（摄像头原画）  右上 OUTPUT（PL 当前输出）
-#   左下 STANDARD CANNY      右下 AG-CANNY
-# 下面两格由 process_loop 额外跑两遍 PL 得到（AGC 关 / AGC 开），
-# 经独立编码线程压成 JPEG，走 /cmpA 与 /cmpB 两条流。
-# 为什么不拼成一张宽画布：拼图后每格只有页面宽度的三分之一，太小看不清；
-# 独立推流则每格都是半页宽，而且主画面尺寸不变，非对比模式的布局完全不受影响。
+# 开对比时页面变成 2x2：
+#   ① 左上 ORIGINAL RGB（摄像头原画）
+#   ② 右上 STANDARD CANNY（PL，AGC 关 + 固定阈值 60/30，就是普通 Canny）
+#   ③ 左下 FPGA AG-CANNY（PL，AGC 开 + 按实测噪声 σ 自适应阈值）
+#   ④ 右下 RUNTIME MONITOR（帧号 / 增益 / 噪声 σ / 两条路径的阈值 / PL 耗时）
+# ②③ 同一帧、同一套硬件，只差"光照自适应"，这才是要突出的东西
+# （不做 CPU 基准：那是比加速器，不是比自适应）。
 CMP_ON = [False]
 # 对比视图锁定的算子。开对比期间**不允许切滤镜**（按钮/手势/挥手都忽略），
 # 否则左右两格在比的东西随时变，评委根本看不出在比什么。
 CANNY_MODE = next((m for m, v in MODE_NAMES.items()
                    if str(v).upper() == "CANNY"), 10)
-CMPBUF = {"a": None, "b": None, "ver": 0}      # 两路对比帧（由 process_loop 填）
-CMPJPG = {"a": None, "b": None, "ver": 0}      # 编码线程产出，供 /cmpA /cmpB 推流
+CMPBUF = {"a": None, "ver": 0}         # ②号窗格的普通 Canny 帧（process_loop 填）
+CMPJPG = {"jpg": None, "ver": 0}       # 编码线程产出，供 /cmpstd 推流
+CMPSUM = {"gain_std": 1.0, "thr_std": "60 / 30",
+          "gain_ag": 1.0, "thr_ag": "60 / 30"}
 # 对比视图里"每几帧插一次 op1（SOBEL）专门测噪声 σ"。
 # 为什么必须插：hw_driver 里 sigma_valid = (0 < op < 9)，
 # op 9/10/11 走 5x5 通路，PL 的 ap_return **恒返回 0**（不是"测出 0"，是"没测"）。
 # 于是一直停在 CANNY 时 σ 永远是 0、自适应阈值永远退化成默认 60/30，
 # 右边和左边就长得一模一样 —— 对比视图等于白开。
 # 插一次 op1 只要一次 PL 调用（约 3.7 ms），输出丢弃，只为把 σ 喂给下一帧的阈值。
-SIGMA_EVERY = 6
+SIGMA_EVERY = 12
+# ②号窗格（普通 Canny）每几帧才重算一次。
+# 它是一张"对照图"，不是实时主画面，没有必要每帧都跑一遍 PL
+# （每帧多一次 PL 调用 = 多约 14 ms，四画面时帧率直接掉一半）。
+# 隔帧复用上一张，肉眼几乎看不出差别，帧率却回来了。
+STD_EVERY = 3
 _LAST_SIGMA = [0.0]      # 最近一次**有效**的 σ，避免 HUD 在 0 和数值之间跳
 
 _push_n = 0
@@ -300,10 +307,32 @@ a.on{background:#2f4a38;color:#c9f5d3;border-color:#6ee68c}
 .pane{flex:1;min-width:0}
 /* 对比视图：2x2 四窗格。非对比模式下 .cmpane 不显示，布局和原来完全一样。 */
 .cmpane{display:none}
-body.cmp .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmpcap{color:#6ee68c}
+/* ④ 运行时参数面板 */
+.mon{border:1px solid #3a3a36;border-radius:6px;background:#141312;
+     padding:6px 10px;font-size:13px;line-height:2.05}
+.mon div{display:flex;justify-content:space-between;gap:10px;
+         border-bottom:1px dashed #2c2b28}
+.mon div:last-child{border-bottom:0}
+.mon span{color:#8a867e}
+.mon b{color:#7ecbff;font-weight:500}
+.monnote{font-size:11px;color:#8a867e;padding:5px 2px 0}
+body.cmp .mon{min-height:36vh}
+body.cmp .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 body.cmp .cmpane{display:block}
 body.cmp .wrap{max-width:1760px}
-.cmpcap{color:#6ee68c}
+/* 录屏要"一屏装得下"：把顶栏、标题、HUD 全部收紧，
+   四个窗格按视口高度定尺寸（不再按宽度撑满），
+   并隐掉下面两块面板（性能表和流水线图，录视频时它们只挡视线）。 */
+body.cmp .bar{font-size:11.5px;padding:5px 10px;gap:7px}
+body.cmp .bar a{padding:1px 7px}
+body.cmp .hint{display:none}
+body.cmp .title{font-size:14px;padding:4px 0 6px}
+body.cmp .wrap{padding:5px 10px 8px}
+body.cmp .cap{font-size:11.5px;padding:0 0 3px 2px}
+body.cmp .pane img,body.cmp .pane canvas{max-height:36vh;width:auto;margin:0 auto}
+body.cmp .hud{font-size:12px;line-height:1.55;padding:6px 2px 0}
+body.cmp .perf,body.cmp .pipe{display:none}
 .cap{font-size:12.5px;padding:0 0 5px 2px;color:#9a968e}
 .cap.pl{color:#6ee68c;font-weight:500}
 img,canvas{width:100%;display:block;background:#000;border-radius:6px}
@@ -381,15 +410,24 @@ table.pt .hi{color:#6ee68c;font-weight:500}
 <div class="wrap">
   <div class="title">PYNQ-Z2 REAL-TIME IMAGE ACCELERATION</div>
   <div class="grid">
-    <div class="pane"><div class="cap">INPUT · RGB</div>
+    <div class="pane"><div class="cap">① ORIGINAL RGB</div>
       <img id="cam" src="/cam"></div>
+    <div class="pane cmpane"><div class="cap" id="capCPU">② STANDARD CANNY</div>
+      <img id="cCPU" <!--SRC_STD-->></div>
     <div class="pane"><div class="cap pl" id="modecap">PL / -</div>
       <canvas id="cv" width="640" height="480"></canvas></div>
-    <!-- 对比视图的两格：只有 body 带 cmp 类时才显示 -->
-    <div class="pane cmpane"><div class="cap" id="capA">STANDARD CANNY</div>
-      <img id="cA" <!--SRC_A-->></div>
-    <div class="pane cmpane"><div class="cap cmpcap" id="capB">AG-CANNY</div>
-      <img id="cB" <!--SRC_B-->></div>
+    <!-- ④ 运行时参数面板：把两条路径的实时数字摆在一起，录视频不用滚屏 -->
+    <div class="pane cmpane"><div class="cap cmpcap">④ RUNTIME MONITOR</div>
+      <div class="mon">
+        <div><span>Frame ID</span><b id="mFid">-</b></div>
+        <div><span>AGC Gain</span><b id="mGain">-</b></div>
+        <div><span>Noise σ</span><b id="mSig">-</b></div>
+        <div><span>Threshold (AG)</span><b id="mThr">-</b></div>
+        <div><span>PL Kernel</span><b id="mPl">-</b></div>
+        <div><span>PIPE fps</span><b id="mFps">-</b></div>
+        <div><span>Thr STD / AG</span><b id="mThr2">-</b></div>
+      </div>
+      <div class="monnote">同一帧 · 同一套硬件 · 只差光照自适应</div></div>
     <div class="pane" id="mkpane" style="display:none;max-width:330px"><div class="cap">SKIN MASK 320x240</div>
       <img id="mk" src="/mask"></div>
   </div>
@@ -615,11 +653,18 @@ async function stats(){
     // 对比两格的标题带上"这一格实际用上的增益和阈值"：
     // 光照不够暗时 AGC 增益会被夹在 1.00x、两格画面看着一样，
     // 这时标题上的数字就是唯一能证明"右边确实在自适应"的东西。
-    const cA=document.getElementById('capA'), cB=document.getElementById('capB');
-    if(cA) cA.textContent = 'STANDARD CANNY · gain '+(s.cmp_gain_off||1).toFixed(2)
-        +'x · thr '+s.cmp_thr_off;
-    if(cB) cB.textContent = 'AG-CANNY · gain '+(s.cmp_gain_on||1).toFixed(2)
-        +'x · thr '+s.cmp_thr_on+' · sigma '+(s.sigma||0).toFixed(2);
+    const cA=document.getElementById('capCPU');
+    if(cA) cA.textContent = '② STANDARD CANNY · gain '+(s.cmp_gain_std||1).toFixed(2)
+        +'x · thr '+s.cmp_thr_std;
+    // ④ 参数面板：把"自适应到底改了什么"直接摆成数字
+    const mset=function(id,v){const e=document.getElementById(id); if(e) e.textContent=v;};
+    mset('mFid', s.fid===undefined?'-':s.fid);
+    mset('mGain', (s.gain_x||1).toFixed(2)+'x');
+    mset('mSig', (s.sigma||0).toFixed(2));
+    mset('mThr', s.thr_hi+' / '+s.thr_lo);
+    mset('mPl', (s.pl_kernel_ms||0).toFixed(2)+' ms');
+    mset('mFps', (s.pipe||0).toFixed(1));
+    mset('mThr2', s.cmp_thr_std+'  /  '+s.cmp_thr_ag);
     // 手势风格按钮：互斥，高亮当前那个
     const gs=document.getElementById('gsw'), gf=document.getElementById('gfi');
     if(gs) gs.className = s.auto_control ? 'cal' : 'cal on';
@@ -636,10 +681,11 @@ async function stats(){
     if(w.last_dir) st=(w.last_dir==='left'?'last 左挥 → 模式+1':'last 右挥 → 模式-1')+' · '+st;
     set('sw', st+'  [pts '+(w.points||0)+' · 跟踪面积 '+Math.round(w.area||0)+']');
     set('fing', s.fingers===null?'-':s.fingers);
-    set('modecap', (s.hw.indexOf('SIM')>=0 ? 'PC SOFTWARE / ' : 'PL HARDWARE / ')+s.mode_name
-        + (s.cmp_on ? '  ·  AGC 对比分屏（左 OFF / 右 ON，'
-                      +(s.cmp_ms||0).toFixed(1)+' ms 两遍）'
-                    : (s.diff_on ? '  ·  DIFF x3 ('+(s.diff_ms||0).toFixed(1)+' ms)' : '')));
+    set('modecap', s.cmp_on
+        ? ('③ FPGA AG-CANNY · gain '+(s.gain_x||1).toFixed(2)+'x · thr '
+           +s.thr_hi+' / '+s.thr_lo+' · sigma '+(s.sigma||0).toFixed(2))
+        : ((s.hw.indexOf('SIM')>=0 ? 'PC SOFTWARE / ' : 'PL HARDWARE / ')+s.mode_name
+           + (s.diff_on ? '  ·  DIFF x3 ('+(s.diff_ms||0).toFixed(1)+' ms)' : '')));
     set('hw', s.hw+'  |  calib: '+s.calib+'  |  cam '+s.cam.toFixed(1)+
               ' fps  |  raw clients '+s.raw_clients);
     const hint=document.getElementById('hint');
@@ -942,50 +988,56 @@ def process_loop(args):
             output = processor.run(latch.mode, frame)
             filter_ms = (time.perf_counter() - t0) * 1000
 
-            # ---- AGC 对比：额外再跑两遍 CANNY（AGC 关 / AGC 开）----
-            # 结果放进 CMPBUF，由独立的编码线程压成 JPEG 推给 /cmpA 和 /cmpB，
-            # 不拼进主画面 —— 主画面（/raw）尺寸保持 640x480 不变，
-            # 四个窗格各自半页宽，比拼成一张宽画布大得多。
+            # ---- 对比模式：补测 σ + 多跑一遍"普通 Canny" ----
+            # ③ 号窗格就是主画面本身（/raw，AG-Canny），
+            # ② 号窗格要的是同一帧、同一套硬件、但关掉光照自适应的结果，
+            # 所以这里额外跑一遍：AGC 关（gain=256）+ 固定双阈值 60/30。
             cmp_ms = 0.0
             if CMP_ON[0]:
+                # 只在需要重算的那一帧额外跑 PL；其余帧沿用上一张对照图。
+                # σ 是否该探测也一起判断，两件事共用一次"这帧要不要多干活"的决定。
+                _need_std = ((count % STD_EVERY) == 0) or not CMPBUF["a"]
+                _left = None          # 不重算的帧沿用上一张对照图，下面靠它判断
                 tc = time.perf_counter()
+                # 先记下主画面（AG-Canny）这一帧实际用上的增益和阈值 ——
+                # 下面那遍会覆盖 processor 上的读数，必须先把它们抄下来。
+                _rg = int(getattr(processor, "last_gain", 256) or 256)
+                _rt = int(getattr(processor, "last_thresh", 0) or 0)
                 _prev_agc = getattr(processor, "agc_enabled", True)
                 _prev_ad = getattr(processor, "canny_adaptive", False)
                 try:
                     # σ 补测：op1..8 才返回 σ，op9~11 恒为 0（见 SIGMA_EVERY 注释）。
-                    # 每 SIGMA_EVERY 帧插一次 op1，输出丢弃，只为让 AG-Canny 那一路
-                    # 的阈值真能按实测噪声自适应（否则永远退化成默认 60/30）。
+                    # 每 SIGMA_EVERY 帧插一次 op1，输出丢弃，只为让 AG-Canny 的阈值
+                    # 真能按实测噪声自适应（否则永远退化成默认 60/30）。
                     if ((count % SIGMA_EVERY) == 0
                             or not getattr(processor, "_sigma_prev_ok", False)):
                         processor.run(1, frame)
                         _s = float(getattr(processor, "last_sigma", 0.0) or 0.0)
                         if _s > 0:
                             _LAST_SIGMA[0] = _s
-                    processor.agc_enabled = False
-                    processor.canny_adaptive = False
-                    # 必须 copy：驱动返回的是 PL 输出缓冲的视图，下一遍 run 会原地覆盖
-                    _left = np.array(processor.run(CANNY_MODE, frame),
-                                     dtype=np.uint8, copy=True)
+                    if _need_std:
+                        processor.agc_enabled = False
+                        processor.canny_adaptive = False
+                        # 必须 copy：驱动返回的是 PL 输出缓冲的视图，下一帧会原地覆盖
+                        _left = np.array(processor.run(CANNY_MODE, frame),
+                                         dtype=np.uint8, copy=True)
                     _lg = int(getattr(processor, "last_gain", 256) or 256)
                     _lt = int(getattr(processor, "last_thresh", 0) or 0)
-                    processor.agc_enabled = True
-                    processor.canny_adaptive = True
-                    _right = np.array(processor.run(CANNY_MODE, frame),
-                                      dtype=np.uint8, copy=True)
-                    _rg = int(getattr(processor, "last_gain", 256) or 256)
-                    _rt = int(getattr(processor, "last_thresh", 0) or 0)
+                except Exception as exc:
+                    print("[cmp] standard pass failed:", exc)
+                    _left = None
                 finally:
                     # 还原成网页上 AGC/THRESH 按钮设定的状态，别把面板状态改坏
                     processor.agc_enabled = _prev_agc
                     processor.canny_adaptive = _prev_ad
-                with LOCK:
-                    CMPBUF["a"] = _left
-                    CMPBUF["b"] = _right
-                    CMPBUF["ver"] += 1
-                    STATE["cmp_gain_off"] = round(_lg / 256.0, 2)
-                    STATE["cmp_thr_off"] = "%d / %d" % ((_lt >> 8) & 0xFF, _lt & 0xFF)
-                    STATE["cmp_gain_on"] = round(_rg / 256.0, 2)
-                    STATE["cmp_thr_on"] = "%d / %d" % ((_rt >> 8) & 0xFF, _rt & 0xFF)
+                if _left is not None:
+                    with LOCK:
+                        CMPBUF["a"] = _left
+                        CMPBUF["ver"] += 1
+                        CMPSUM["gain_std"] = round(_lg / 256.0, 2)
+                        CMPSUM["thr_std"] = "%d / %d" % ((_lt >> 8) & 0xFF, _lt & 0xFF)
+                        CMPSUM["gain_ag"] = round(_rg / 256.0, 2)
+                        CMPSUM["thr_ag"] = "%d / %d" % ((_rt >> 8) & 0xFF, _rt & 0xFF)
                 cmp_ms = (time.perf_counter() - tc) * 1000
 
             # 差值视图：显示 |滤镜输出 − 灰度原图| × 3。
@@ -1032,6 +1084,7 @@ def process_loop(args):
                 STATE["filter_ms"] = filter_ms
                 STATE["diff_ms"] = diff_ms
                 STATE["cmp_ms"] = cmp_ms
+                STATE["fid"] = count
                 STATE["fingers"] = FINGERS["value"]
                 STATE["g_ms"] = FINGERS["ms"]
                 STATE["g_hz"] = FINGERS["hz"]
@@ -1263,32 +1316,27 @@ def cam_encode_loop(args):
 
 
 def cmp_encode_loop(args):
-    """把对比用的两路 CANNY 帧压成 JPEG，供 /cmpA 与 /cmpB 推流。
+    """把②号窗格（普通 Canny）压成 JPEG，供 /cmpstd 推流。
 
     单独一条线程的原因和 cam_encode_loop 一样：640x480 的 JPEG 编码在 ARM 上
-    要十几毫秒，塞进主循环会把帧率直接压死。这里只在 CMPBUF 版本号变了才编码，
-    关着对比时基本空转（每 80 ms 醒一次）。
+    要十几毫秒，塞进主循环会把帧率压死。关着对比时整条线程空转。
     """
     quality = int(args.quality)
     last = -1
     while not STATE["stop"]:
         if not CMP_ON[0]:
-            time.sleep(0.08)
+            time.sleep(0.15)
             continue
         with LOCK:
             ver = CMPBUF["ver"]
             a = CMPBUF["a"]
-            b = CMPBUF["b"]
-        if a is not None and b is not None and ver != last:
+        if a is not None and ver != last:
             last = ver
-            oka, ba = cv2.imencode(".jpg", a,
+            ok, buf = cv2.imencode(".jpg", a,
                                    [int(cv2.IMWRITE_JPEG_QUALITY), quality])
-            okb, bb = cv2.imencode(".jpg", b,
-                                   [int(cv2.IMWRITE_JPEG_QUALITY), quality])
-            if oka and okb:
+            if ok:
                 with LOCK:
-                    CMPJPG["a"] = ba.tobytes()
-                    CMPJPG["b"] = bb.tobytes()
+                    CMPJPG["jpg"] = buf.tobytes()
                     CMPJPG["ver"] = ver
         time.sleep(0.02)
 
@@ -1372,7 +1420,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
     def _mjpg(self, key, ver_key):
-        """通用的 MJPEG 推流（掩膜、对比两路都用它）。"""
+        """通用的 MJPEG 推流（掩膜、普通 Canny 对比格都用它）。key 是 CMPJPG 的键。"""
         self.send_response(200)
         self.send_header("Age", "0")
         self.send_header("Cache-Control", "no-cache, private")
@@ -1382,8 +1430,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while not STATE["stop"]:
                 with LOCK:
-                    ver = STATE.get(ver_key, 0) if ver_key else CMPJPG["ver"]
-                    data = STATE.get(key) if ver_key else CMPJPG[key]
+                    data = CMPJPG[key]
+                    ver = CMPJPG["ver"]
                 if data and ver != last:
                     last = ver
                     self.wfile.write(b"--jpgboundary\r\n")
@@ -1391,7 +1439,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.wfile.write(("Content-Length: %d\r\n\r\n" % len(data)).encode())
                     self.wfile.write(data)
                     self.wfile.write(b"\r\n")
-                time.sleep(0.06)
+                time.sleep(0.1)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             return
 
@@ -1474,9 +1522,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(PAGE.encode("utf-8"), "text/html; charset=utf-8")
         elif p == "/mask":
             self._stream_mask()
-        elif p in ("/cmpA", "/cmpB"):
-            # 对比两路的 MJPEG 流（左下 STANDARD CANNY / 右下 AG-CANNY）
-            self._mjpg("a" if p == "/cmpA" else "b", None)
+        elif p == "/cmpstd":
+            # ②号窗格：普通 Canny（PL，AGC 关 + 固定阈值）
+            self._mjpg("jpg", None)
         elif p == "/bench":
             # 只在「当前这一帧」上跑一次 PL vs ARM。很贵（约 0.3 s 卡顿），
             # 所以不做成常驻，按需触发。
@@ -1565,10 +1613,10 @@ class Handler(BaseHTTPRequestHandler):
                         "mask_on": MASK_ON[0], "calib": STATE["calib_msg"],
                         "diff_on": DIFF_ON[0], "diff_ms": STATE["diff_ms"],
                         "cmp_on": CMP_ON[0], "cmp_ms": STATE.get("cmp_ms", 0.0),
-                        "cmp_gain_off": STATE.get("cmp_gain_off", 1.0),
-                        "cmp_thr_off": STATE.get("cmp_thr_off", "-"),
-                        "cmp_gain_on": STATE.get("cmp_gain_on", 1.0),
-                        "cmp_thr_on": STATE.get("cmp_thr_on", "-"),
+                        "cmp_gain_std": CMPSUM["gain_std"],
+                        "cmp_thr_std": CMPSUM["thr_std"],
+                        "cmp_thr_ag": CMPSUM["thr_ag"],
+                        "fid": STATE.get("fid", 0),
                         "swipe": dict(SWIPE_DIAG), "auto_control": AUTO[0],
                         # --- 硬件加速证据 ---
                         "pack_ms": STATE["pack_ms"],
