@@ -198,6 +198,21 @@ _CMPSTD_FAILS = [0]
 # 想让 ②号窗格更跟手就把 STD_EVERY 调小 —— 但这个常量已经不再参与节流判断，
 # 真正生效的是 STD_INTERVAL（秒）。留着只是给老脚本/老文档兜底，别再用。
 STD_EVERY = int(os.environ.get("STD_EVERY", "5"))
+# σ 的经验修正系数。1.0 = 严格按"噪声随 AGC 线性放大"推导。
+# 现场要是还嫌噪点多就往大调：SIGMA_K=2（或 3）启动 —— 每加一档，
+# Canny 阈值整体抬高，噪点变少，但太弱的真实边缘也会被一起压掉。
+# 调的时候盯着③号：噪点刚好消失、物体轮廓还在，就是这一档。
+SIGMA_K = float(os.environ.get("SIGMA_K", "1.0"))
+# 自适应阈值的**下限**：等效 σ 不低于这个值，也就是 Canny 高阈值不低于 60
+# （= 默认 CANNY_THRESH_DEFAULT 的高位）。7.94 = 60 / 7.56（K_HI）。
+# 为什么必须兜这一层：噪声小的时候按 7.56×σ 算出来的阈值会比固定的 60/30 还松，
+# 结果"开了自适应噪点反而更多"，演示直接翻车。兜住之后自适应的行为是：
+#   画面干净 → 阈值 = 60/30（与固定阈值打平，不吃亏）
+#   噪声变大 → 阈值 > 60/30（按比例抬高，把噪点压掉）
+# 于是 ③ 号的噪点**永远不会比 ② 号多**，而 ② 号在暗处会漏检 —— 对比才成立。
+# 关掉：SIGMA_FLOOR=0
+SIGMA_FLOOR = os.environ.get("SIGMA_FLOOR", "1") not in ("0", "no", "off", "")
+SIGMA_FLOOR_S = float(os.environ.get("SIGMA_FLOOR_S", "7.94"))
 _LAST_SIGMA = [0.0]      # 最近一次**有效**的 σ，避免 HUD 在 0 和数值之间跳
 
 _push_n = 0
@@ -1090,7 +1105,24 @@ def process_loop(args):
                         processor.run(1, frame)
                         _s = float(getattr(processor, "last_sigma", 0.0) or 0.0)
                         if _s > 0:
+                            # ★ AGC 增益补偿（2026-11-03 修，之前漏了这一步）
+                            # op1 走 3x3 通路，**不经过 AGC**；而 Canny 那条 5x5 通路
+                            # 是在"级1 增益之后"才做 Sobel。AGC 把信号和噪声一起
+                            # 放大 g 倍，所以实测 σ 必须乘回去 —— 否则算出来的阈值
+                            # 只有实际需要的 1/g。现场表现就是"越暗噪点越多"，
+                            # 光照自适应反而把噪声一起放大了。
+                            # _rg 是主画面（AG-Canny）这一帧用的 gain，见上面抄下来的值。
+                            _s = _s * max(_rg / 256.0, 1.0) * SIGMA_K
+                            if SIGMA_FLOOR:
+                                _s = max(_s, SIGMA_FLOOR_S)
                             _LAST_SIGMA[0] = _s
+                            # hw_driver 用 _sigma_prev 算阈值，直接换成补偿后的值，
+                            # 否则下一帧 run() 又会被 run(1) 测到的原始 σ 覆盖回去。
+                            try:
+                                processor._sigma_prev = _s
+                                processor._sigma_prev_ok = True
+                            except Exception:
+                                pass
                         _LAST_SIG_T[0] = _now
                     if _need_std:
                         processor.agc_enabled = False
