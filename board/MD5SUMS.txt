@@ -24,6 +24,6 @@ baa333c88933eecc857dd26dd217abc7  diag_slow.py
 0b387383001aa10561b73b05042f1245  probe_camera.py
 e55e974b8141467bb1b5b00dec21f12e  probe_read.py
 a6b93df362c3058ea2cf2b13524ac51f  repro_5fingers.py
-b6dcc6dd807ad044240b487bf16bc1dd  sigma.py
+986a8b697debce58c86e1f88a843a462  sigma.py
 12025b75f7be854f3a92c9fa8154748a  BOARD_CHECKLIST_1030.md
-6dfceae80e454830f58a521f122d0ad3  README_上板说明_v82.md
+5dfb313b55932b90960c383246f1d446  README_上板说明_v82.md
