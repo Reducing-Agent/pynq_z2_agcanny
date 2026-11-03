@@ -113,6 +113,34 @@ bytes, so file size cannot distinguish versions.
 | `rgb2gray.bit` | `6b5fd2f907b7214a528530dcca6b418a` |
 | `rgb2gray.hwh` | `9b7407a3772b4d2800d00b6d65ba751a` |
 
+## AGC compare view
+
+Click **AGC compare ON** in the top bar (or press `v`) to switch the page from
+the single-pane view to a 2x2 layout:
+
+| | left | right |
+|---|---|---|
+| top | 1. raw camera frame | 2. standard Canny: same PL, AGC off, fixed 60/30 |
+| bottom | 3. AG-Canny: AGC on, thresholds from measured sigma | 4. runtime monitor |
+
+Both Canny panes run on the same FPGA with the same bitstream. The only
+difference is whether light adaptation is on, which is the point of the
+comparison. While the compare view is active the operator is locked to Canny,
+so neither a button nor a gesture can switch the filter underneath you.
+
+Two things to know before filming it:
+
+- AGC only brightens, it never dims (`AGC_TARGET_MU = 110`). In a bright room
+  the measured mean stays above 110, the gain is clamped to 1.00x, and both
+  panes come out looking the same. Dim the lights or half-cover the lens to
+  push the mean below 110.
+- `hw_driver` reports sigma only for op 1..8; the 5x5 Canny path leaves
+  `ap_return` at 0. The compare view inserts an extra op-1 pass every
+  `SIGMA_EVERY` frames (default 15) purely to measure noise, and recomputes
+  pane 2 every `STD_EVERY` frames (default 5). Both are environment variables:
+  smaller values make the panes more responsive and cost frame rate, e.g.
+  `STD_EVERY=2 ./start_web.sh`.
+
 ---
 
 ## Reproduction
