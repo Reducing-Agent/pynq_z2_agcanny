@@ -185,9 +185,10 @@ STD_INTERVAL = float(os.environ.get("STD_INTERVAL", "0.12"))
 # 直接设 CMPSTD=0 可以整块关掉 ② 号对照图的额外计算（排障用：关掉后画面若恢复，
 # 就证明瓶颈在对照图这一遍 PL，而不是主链）。
 CMPSTD_ON = os.environ.get("CMPSTD", "1") not in ("0", "no", "off", "")
-# CMP_FILL=1：四格铺满整屏（object-fit:cover，4:3 上下各裁约 12%）。
-# 默认关：保留完整画面，格子按 4:3 居中，只是左右留一点背景色。
-CMP_FILL = os.environ.get("CMP_FILL", "0") not in ("0", "no", "off", "")
+# CMP_FIT=1：退回"完整画面"模式（object-fit:contain），4:3 一点不裁，
+# 代价是格子会有黑边（笔记本 1080~1366 宽的屏上黑边能占到格子的一半）。
+# 默认 0 = 铺满（cover）。
+CMP_FIT = os.environ.get("CMP_FIT", "0") not in ("0", "no", "off", "")
 _LAST_STD_T = [0.0]
 _CMPSTD_FAILS = [0]
 # ②号窗格（普通 Canny）每几帧才重算一次。
@@ -361,10 +362,18 @@ a.on{background:#2f4a38;color:#c9f5d3;border-color:#6ee68c}
    .grid 用 flex:1 吃掉剩余全部高度，两行两列各 1fr ——
    于是四格尺寸只由视口决定，与图片内容无关，天然等大。 */
 body.cmp{overflow:hidden;height:100vh;display:flex;flex-direction:column}
-/* 录屏/演示时底部那 5~6 行状态文字（约 85 px）和标题都是纯装饰 ——
-   PIPE fps / gain / σ / 阈值 ④号面板里已经有了，全砍掉把高度还给画面。
-   顶栏必须留着：THRESH AUTO 和 AGC 对比 OFF 两个按钮在上面。 */
-body.cmp .hud,body.cmp .title{display:none}
+/* 录屏/演示时这一整批都是纯装饰，高度必须全还给画面：
+     .hud   底部 5~6 行状态文字（PIPE/PUSH/CLIENT/gesture/swipe）
+     .title 标题
+     .perf  HARDWARE ACCELERATION EVIDENCE 大表
+     .pipe  融合流水线图
+     .g     光照自适应表 + 硬件参数表（id=adap / id=hw）
+   ④号 RUNTIME MONITOR 里 PIPE fps / gain / σ / 阈值 全都有，不重复。
+   顶栏必须留着：THRESH AUTO 和 AGC 对比 OFF 两个按钮在上面。
+     ⚠ 别只隐藏 .hud/.title —— 2026-11-03 就是漏了 .perf/.pipe/.g，
+   结果底部堆了四大块把 grid 挤成一点点高，画面小到只有格子的 50%。 */
+body.cmp .hud,body.cmp .title,
+body.cmp .perf,body.cmp .pipe,body.cmp .g{display:none}
 body.cmp .bar{flex:0 0 auto;font-size:11px;padding:2px 8px;gap:5px}
 body.cmp .bar a{padding:0 6px}
 body.cmp .hint{display:none}
@@ -374,21 +383,21 @@ body.cmp .wrap{flex:1 1 auto;min-height:0;max-width:none;padding:4px 8px 4px;
    min-content，而 <canvas height="480"> 和 <img> 都有固有高度，会把所在那一行
    顶高 —— 实测上排 270 px / 下排 300 px 就是这么来的。
    写成 minmax(0, 1fr) 才真正等分，四格边框严格一样大。 */
-body.cmp .grid{display:grid;gap:8px;flex:1 1 auto;min-height:0;
+body.cmp .grid{display:grid;gap:6px;flex:1 1 auto;min-height:0;
                grid-template-columns:repeat(2,minmax(0,1fr));
                grid-template-rows:repeat(2,minmax(0,1fr));
-               justify-items:center;align-items:stretch}
-/* 格子本身做成 4:3 并居中：摄像头就是 640x480，格子按 4:3 之后画面正好铺满，
-   左右不会留出黑边（原来格子被拉成 16:9，contain 之后左右各空一大条）。
-   上下两排仍然等大，因为宽度是从同一个行高推出来的。 */
+               align-items:stretch}
+/* 默认铺满：格子占满各自那半屏，画面 object-fit:cover 填满格子。
+   代价是 4:3 会被裁掉一点边（宽屏裁上下、方屏裁左右，两格对称裁，
+   不影响左右对比）。演示要的就是"占满屏幕"，这是唯一能做到的办法 ——
+   摄像头只有 640x480，contain 必然留黑边，而且留出来的黑边在
+   1080~1366 宽的笔记本上能占到格子的一半。
+   想看完整不裁的画面就用 CMP_FILL=0 启动。 */
 body.cmp .pane{display:flex;flex-direction:column;min-width:0;min-height:0;
-               overflow:hidden;height:100%;aspect-ratio:4/3}
+               overflow:hidden}
 body.cmp .pane img,body.cmp .pane canvas{flex:1 1 0;min-height:0;min-width:0;
-     width:100%;height:100%;object-fit:contain}
-/* 真要"糊满整屏"就用 CMP_FILL=1 启动：改成 cover，画面铺满格子，
-   代价是 4:3 的上下各裁掉约 12%（两格对称裁，不影响左右对比）。 */
-body.cmp.fill .pane{aspect-ratio:auto;width:100%}
-body.cmp.fill .pane img,body.cmp.fill .pane canvas{object-fit:cover}
+     width:100%;height:100%;object-fit:cover}
+body.cmp.fit .pane img,body.cmp.fit .pane canvas{object-fit:contain}
 body.cmp .mon{flex:1 1 0;min-height:0;overflow:auto;
               display:flex;flex-direction:column;justify-content:center}
 body.cmp .cmpane{display:block}
@@ -856,7 +865,7 @@ def render_page():
     # 占位符名字必须和模板里写的一模一样 —— 上一版这里写的是 SRC_A/SRC_B，
     # 模板里却是 SRC_STD，替换不到，结果右上角永远没有画面。
     _std = 'src="/cmpstd"' if CMP_ON[0] else ""
-    _cls = "" if not CMP_ON[0] else ("cmp fill" if CMP_FILL else "cmp")
+    _cls = "" if not CMP_ON[0] else ("cmp fit" if CMP_FIT else "cmp")
     return (PAGE_TEMPLATE
             .replace("<!--MODES-->", build_mode_buttons())
             .replace("<!--CMPCLS-->", _cls)
