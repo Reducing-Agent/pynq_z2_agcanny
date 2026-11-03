@@ -160,7 +160,7 @@ _LAST_SIG_T = [0.0]
 # 的正反馈，极端时主链被拖到肉眼完全静止（2026-11-03 现场）。
 # 改成按时间节流后，额外开销恒定为每秒 1/STD_INTERVAL + 1/SIGMA_INTERVAL
 # 次 PL 调用，与主链帧率彻底解耦。
-STD_INTERVAL = float(os.environ.get("STD_INTERVAL", "0.25"))
+STD_INTERVAL = float(os.environ.get("STD_INTERVAL", "0.12"))
 # 想让 ②号窗格更跟手就把 STD_INTERVAL 调小（现场临时改：STD_INTERVAL=0.15 ./start_web.sh）；
 # 直接设 CMPSTD=0 可以整块关掉 ② 号对照图的额外计算（排障用：关掉后画面若恢复，
 # 就证明瓶颈在对照图这一遍 PL，而不是主链）。
@@ -344,14 +344,19 @@ body.cmp .hint{display:none}
 body.cmp .wrap{flex:1 1 auto;min-height:0;max-width:none;padding:4px 10px 6px;
                display:flex;flex-direction:column}
 body.cmp .title{flex:0 0 auto;font-size:14px;padding:3px 0 5px}
-body.cmp .grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
-               gap:8px;flex:1 1 auto;min-height:0}
+/* minmax(0, 1fr) 而不是 1fr：1fr 展开是 minmax(auto, 1fr)，最小值取
+   min-content，而 <canvas height="480"> 和 <img> 都有固有高度，会把所在那一行
+   顶高 —— 实测上排 270 px / 下排 300 px 就是这么来的。
+   写成 minmax(0, 1fr) 才真正等分，四格边框严格一样大。 */
+body.cmp .grid{display:grid;gap:8px;flex:1 1 auto;min-height:0;
+               grid-template-columns:repeat(2,minmax(0,1fr));
+               grid-template-rows:repeat(2,minmax(0,1fr))}
 body.cmp .pane{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
-/* min-height:0 是关键：flex 子项默认 min-height:auto，不写死它图片不会缩，
-   而是把格子撑破、整页冒出滚动条 —— 这也是上一版"看着像卡死"的一半原因。
-   object-fit:contain 保证 640x480 不被拉伸，四格边框仍然严格等大。 */
-body.cmp .pane img,body.cmp .pane canvas{flex:1 1 0;min-height:0;width:100%;
-     height:auto;object-fit:contain}
+/* width/height 都给 100%，高度不再交给 height:auto（那样又回到按固有尺寸算）。
+   元素框四格完全一致，object-fit:contain 再把 4:3 的画面letterbox 进去，
+   于是①②③ 三格的**显示尺寸**也完全一致。 */
+body.cmp .pane img,body.cmp .pane canvas{flex:1 1 0;min-height:0;min-width:0;
+     width:100%;height:100%;object-fit:contain}
 body.cmp .mon{flex:1 1 0;min-height:0;overflow:auto}
 body.cmp .cmpane{display:block}
 body.cmp .cap{font-size:11.5px;padding:0 0 3px 2px}
@@ -1325,15 +1330,23 @@ def cam_encode_loop(args):
     这里按 --cam-fps（默认 8）慢速压 JPEG，且先用 --cam-scale（默认 0.5）缩小
     再编码：320x240 的 JPEG 只要 ~20 ms，左侧参考窗从 4 fps 提到 8 fps
     也只占约 15% 的一个核。左窗只是"对比参考"，右边的 PL 输出才是作品画面。
+
+    例外：开了 2x2 对比视图时改成 640x480 原生分辨率 + 5 fps，
+    否则①号在同样大的格子里会明显比②③糊。
     """
-    interval = 1.0 / max(args.cam_fps, 0.1)
+    # 对比模式下①号必须和②③同分辨率（都是 640x480），否则同样大的格子里
+    # ① 是 320x240 被放大、②③ 是原生 640x480，一眼就能看出清晰度不一样，
+    # 评委第一反应是"这不是同一帧"。代价是编码贵，所以同时把帧率压到 5 fps。
     while not STATE["stop"]:
         t0 = time.perf_counter()
+        cmp_on = CMP_ON[0]
+        scale = 1.0 if cmp_on else float(args.cam_scale)
+        fps = min(float(args.cam_fps), 5.0) if cmp_on else float(args.cam_fps)
         with LOCK:
             frame = HANDOFF["frame"]
         if frame is not None:
-            if args.cam_scale != 1.0:
-                view = cv2.resize(frame, None, fx=args.cam_scale, fy=args.cam_scale,
+            if scale != 1.0:
+                view = cv2.resize(frame, None, fx=scale, fy=scale,
                                   interpolation=cv2.INTER_AREA)
             else:
                 view = frame
@@ -1342,8 +1355,7 @@ def cam_encode_loop(args):
             # 而且要 copy：scale=1.0 时 view 就是采集线程的数组，不能原地画。
             if STATE.get("calib_box") and CALIB_BOX[0] is not None:
                 view = view.copy()
-                s = args.cam_scale
-                x1, y1, x2, y2 = [int(round(v * s)) for v in CALIB_BOX[0]]
+                x1, y1, x2, y2 = [int(round(v * scale)) for v in CALIB_BOX[0]]
                 cv2.rectangle(view, (x1, y1), (x2, y2), (0, 220, 255), 2)
                 ty = y1 - 8 if y1 > 22 else y2 + 18
                 cv2.putText(view, "PALM HERE", (x1, ty), cv2.FONT_HERSHEY_SIMPLEX,
@@ -1354,7 +1366,8 @@ def cam_encode_loop(args):
                 with LOCK:
                     STATE["cam_jpg"] = buf.tobytes()
                     STATE["cam_ver"] += 1
-        rest = interval - (time.perf_counter() - t0)
+        # 间隔每次重算：开关对比视图后不用重启线程就生效。
+        rest = (1.0 / max(fps, 0.1)) - (time.perf_counter() - t0)
         if rest > 0:
             time.sleep(rest)
 
@@ -1481,8 +1494,13 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             return
 
-    def _mjpg(self, key, ver_key):
-        """通用的 MJPEG 推流（掩膜、普通 Canny 对比格都用它）。key 是 CMPJPG 的键。"""
+    def _mjpg(self, key, ver_key, sleep=0.1):
+        """通用的 MJPEG 推流（掩膜、普通 Canny 对比格都用它）。key 是 CMPJPG 的键。
+
+        sleep 默认 0.1 s；②号对照图刷新更快（STD_INTERVAL 0.12 s ≈ 8 Hz），
+        轮询间隔必须比它小，否则新帧要等到下一次轮询才发出去，
+        实际刷新率被砍半，看着就是"右上角帧率低"。
+        """
         self.send_response(200)
         self.send_header("Age", "0")
         self.send_header("Cache-Control", "no-cache, private")
@@ -1501,7 +1519,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.wfile.write(("Content-Length: %d\r\n\r\n" % len(data)).encode())
                     self.wfile.write(data)
                     self.wfile.write(b"\r\n")
-                time.sleep(0.1)
+                time.sleep(sleep)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             return
 
@@ -1586,7 +1604,7 @@ class Handler(BaseHTTPRequestHandler):
             self._stream_mask()
         elif p == "/cmpstd":
             # ②号窗格：普通 Canny（PL，AGC 关 + 固定阈值）
-            self._mjpg("jpg", None)
+            self._mjpg("jpg", None, sleep=0.04)
         elif p == "/bench":
             # 只在「当前这一帧」上跑一次 PL vs ARM。很贵（约 0.3 s 卡顿），
             # 所以不做成常驻，按需触发。

@@ -3,7 +3,7 @@ f43c32d9bd6fd6a77ff5607f69aca06c  control.py
 8ec4909b71b2ed4dbe4006d701d2e9b1  filters.py
 03975657e675a850fe81839a24dc25c7  gesture.py
 a89ed479e1c91074ae714fc737a12a43  hw_driver.py
-ccea38aabc4808de539362793cdc6a38  live_view_raw.py
+545d3cce402529834198884fdb4950b1  live_view_raw.py
 6b5fd2f907b7214a528530dcca6b418a  rgb2gray.bit
 9b7407a3772b4d2800d00b6d65ba751a  rgb2gray.hwh
 0a6aa6812f881c95d33c80a3a512f7b2  session.py
