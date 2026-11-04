@@ -128,7 +128,7 @@ cd <工程目录>
 python3 -u check_kit.py      # 先验 MD5
 python3 -u validate_v8.py    # 12 个 op 对拍
 python3 -u diag_slow.py      # 640×480 核内耗时
-python3 live_view_raw.py --display web
+MIN_ROUGH=1.07 python3 -u live_view_raw.py --auto
 ```
 
 > **不能加 `sudo`**：`sudo` 触发 `env_reset` → `Device.devices == {}`
@@ -148,6 +148,15 @@ python3 live_view_raw.py --display web
 | `run_hls.ps1` | 命令行跑 Vitis HLS 四步 |
 | `build_bitstream.tcl` | HLS IP → 位流 + `.hwh`（`reset_run` 不可删） |
 | `gen_md5sums.py` | 从 `FILES.txt` 生成 `MD5SUMS.txt` |
+
+`build/ip_repo/rgb2gray/` 另存了两份打包 IP 的接口快照，用于核对 2.3 的寄存器偏移：
+
+| 文件 | 内容 |
+|---|---|
+| `component.xml` | AXI 接口清单、`s_axilite` 寄存器地址表、IP 文件清单 |
+| `constraints/rgb2gray_ooc.xdc` | OOC 综合时钟 `create_clock -period 10.000`（对应 100 MHz） |
+
+它们不是完整 IP：生成的 HDL 未随仓库提交，不能直接拿这个目录去 `update_ip_catalog`。完整 IP 由 `run_hls.ps1` 的 package 步骤从 `src/hls/` 生成；生成后把新的 `component.xml` 与快照对照，即可发现寄存器偏移是否后移。
 
 排障经验见同仓库 `skill/` 目录（17 个真实案例）。
 

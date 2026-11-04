@@ -69,7 +69,7 @@ reduce throughput.
 src/hls/       Vitis-HLS C++ source and the one-command build script
 src/ps/        PYNQ drivers, live view server, gesture modules, benchmarks
 sim/           C testbench and Python golden-reference cross-checks
-build/         Vivado block-design script and HLS build configuration
+build/         Vivado build script, HLS config, packaged-IP metadata (component.xml, OOC XDC)
 board/         on-board run instructions, file manifest, checksums
 data/          test images
 reproduce/     step-by-step reproduction scripts
@@ -79,6 +79,14 @@ report/        full design report
 
 Every path and filename is ASCII-only (lowercase letters, digits, `_`, `-`),
 so the tree reproduces as-is on Linux and the scripts can automate over it.
+
+`build/ip_repo/rgb2gray/` holds two files exported from the packaged HLS IP:
+`component.xml` (AXI interfaces, the `s_axilite` register map and the IP file
+list) and `constraints/rgb2gray_ooc.xdc` (the 10 ns clock used for
+out-of-context synthesis). They are an interface snapshot, not a complete IP
+catalog entry: the generated HDL is not shipped here. Regenerate the full IP
+from `src/hls/` before pointing `ip_repo_paths` at it, then diff the new
+`component.xml` against this snapshot to catch register offsets that moved.
 
 ---
 
