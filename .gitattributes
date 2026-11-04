@@ -4,7 +4,11 @@
 *.bit binary
 *.hwh binary
 *.png binary
-# IP metadata: keep the exact bytes Vivado exported (mixed LF/CRLF), so a
-# regenerated component.xml can be diffed without line-ending noise
+# IP metadata and generated RTL: keep the exact bytes Vivado exported
+# (mixed LF/CRLF), so a regenerated component.xml can be diffed without
+# line-ending noise and the file list stays byte-identical to the tool output
 *.xml -text
 *.xdc -text
+*.bd -text
+*.bda -text
+build/ip_repo/** -text

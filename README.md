@@ -77,16 +77,26 @@ skill/         reusable prompt workflows, templates, check scripts, pitfall list
 report/        full design report
 ```
 
-Every path and filename is ASCII-only (lowercase letters, digits, `_`, `-`),
-so the tree reproduces as-is on Linux and the scripts can automate over it.
+Paths outside `build/ip_repo/` are ASCII-only (lowercase letters, digits, `_`,
+`-`), so the tree reproduces as-is on Linux and the scripts can automate over
+it. `build/ip_repo/` keeps the names Vitis HLS generated, which include
+upper-case letters and `_Pipeline_VITIS_LOOP_*` suffixes; `component.xml`
+references them, so they cannot be renamed.
 
-`build/ip_repo/rgb2gray/` holds two files exported from the packaged HLS IP:
-`component.xml` (AXI interfaces, the `s_axilite` register map and the IP file
-list) and `constraints/rgb2gray_ooc.xdc` (the 10 ns clock used for
-out-of-context synthesis). They are an interface snapshot, not a complete IP
-catalog entry: the generated HDL is not shipped here. Regenerate the full IP
-from `src/hls/` before pointing `ip_repo_paths` at it, then diff the new
-`component.xml` against this snapshot to catch register offsets that moved.
+`build/ip_repo/rgb2gray/` is the packaged HLS IP exactly as Vitis exported it:
+`component.xml`, the `s_axilite` register map, the Verilog and VHDL RTL sets,
+the driver sources, the `xgui` configuration and the OOC clock constraint
+(`constraints/rgb2gray_ooc.xdc`, 10 ns). Point `ip_repo_paths` at `build/ip_repo`
+and run `update_ip_catalog` — the block design opens without rerunning HLS.
+`build/bd/` holds the block design: `design_1.tcl` recreates it in a fresh
+project (PS7, AXI interconnect and the `rgb2gray_0` instance already wired),
+`design_1.bd` / `design_1.bda` are the exported snapshot. `build/README.md`
+gives the order in which to create a project, add the IP repo and generate the
+wrapper.
+
+Rebuilding the IP from `src/hls/` stays the canonical flow. When you do, diff
+the new `component.xml` against this copy: the register offsets in
+`s_axi_control` must not move.
 
 ---
 

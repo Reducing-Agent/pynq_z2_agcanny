@@ -936,7 +936,7 @@ pynq_z2_agcanny/
 ├── src/hls/               # HLS 设计源码（rgb2gray_hls_v8.cpp/.h）+ 命令行构建脚本 run_hls_v8.tcl
 ├── src/ps/                # PS 侧全部 Python：驱动 / 网页服务 / 手势 / 校验与压测脚本
 ├── sim/                   # C 测试台 tb_rgb2gray_hls_v8.cpp、Python 黄金参考对拍、A/B 对拍脚本
-├── build/                 # build_v8.tcl（Vivado 一键构建）、RGB2gray.cfg、MD5.txt、timing_util.txt、ip_repo/（IP 元数据与 OOC 约束）
+├── build/                 # build_v8.tcl（Vivado 一键构建）、RGB2gray.cfg、MD5.txt、timing_util.txt、ip_repo/（打包 IP 整包）、bd/（Block Design 快照与重建 Tcl）
 ├── board/                 # rgb2gray.bit / rgb2gray.hwh / FILES.txt / MD5SUMS.txt / 实测输出
 ├── data/                  # 测试数据说明（全部由脚本合成，固定随机种子）
 ├── reproduce/             # 复现包：env.ps1 / run_hls.ps1 / build_bitstream.tcl / gen_md5sums.py
@@ -944,7 +944,7 @@ pynq_z2_agcanny/
 └── report/                # 本设计报告
 ```
 
-`build/ip_repo/rgb2gray/` 保存打包 IP 导出的 `component.xml`（AXI 接口清单、`s_axilite` 寄存器地址表、IP 文件清单）和 `constraints/rgb2gray_ooc.xdc`（OOC 综合用的 10 ns 时钟约束）。这两个文件是接口快照，不含 HLS 生成的 RTL；完整 IP 仍由 `src/hls/` 重新综合产生。重新生成后把新的 `component.xml` 与这份快照对照，可以确认 `ADDR_*` 偏移没有整体后移。
+`build/ip_repo/rgb2gray/` 是 Vitis HLS 导出的打包 IP 整包：`component.xml`（AXI 接口清单与 `s_axilite` 寄存器地址表）、Verilog 与 VHDL 两套 RTL、`drivers/`、`xgui/`，以及 `constraints/rgb2gray_ooc.xdc`（OOC 综合用的 10 ns 时钟约束）。把 `ip_repo_paths` 指向 `build/ip_repo` 后执行 `update_ip_catalog` 即可直接打开 BD，不需要重跑 HLS。`build/bd/` 存放 Block Design 源文件（`design_1.bd` / `design_1.bda`），PS7、AXI 互联与 `rgb2gray_0` 实例的连线已经就位。重新从 `src/hls/` 生成 IP 后，把新的 `component.xml` 与这份对照，可以确认 `ADDR_*` 偏移没有整体后移。
 
 每一项都配了**验收判据**，判据是具体数值而不是"能跑通"：
 

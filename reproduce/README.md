@@ -91,7 +91,8 @@ grep ADDR_ rgb2gray/hls/impl/ip/.../xrgb2gray_hw.h
 | 全工程 WNS | > 0（本项目 **+0.435 ns**） | 必须收敛 |
 | 失败端点 | **0** | |
 | 主循环 II | 1 | |
-| 核内耗时 @640×480 | **3.2~3.4 ms**（≈1.06 cyc/px） | 若 >2.5 cyc/px 说明没修条件 DDR 写 |
+| 核内耗时 @640×480（op 0~8） | **3.2~3.4 ms**（≈1.06 cyc/px） | 若 >2.5 cyc/px 说明没修条件 DDR 写 |
+| 核内耗时 @640×480（op 9~11 融合） | **3.6~3.8 ms**（≈1.19 cyc/px） | 融合比单算子慢约 12% 属正常，不要用 3.2~3.4 去卡 |
 
 **"核内耗时"是最终判据**。资源对但耗时不对 = burst 没推断出来；
 耗时对但资源差很多 = 源码或约束被动过。
@@ -135,7 +136,7 @@ MIN_ROUGH=1.07 python3 -u live_view_raw.py --auto
 > → `No Devices Found`。迷惑点在于纯 numpy 脚本加了 sudo 照样跑通，
 > 只有 `import pynq` 才崩，很容易误判成"驱动没装好"。
 
-期望：`diag_slow.py` 的 `last_pl_ms` 落在 **3.2~3.4 ms**。
+期望：`diag_slow.py` 的 `last_pl_ms` 对 op 0~8 落在 **3.2~3.4 ms**、op 9~11 落在 **3.6~3.8 ms**。用单一区间去卡会把融合模式误判为失败。
 
 ---
 
@@ -149,14 +150,16 @@ MIN_ROUGH=1.07 python3 -u live_view_raw.py --auto
 | `build_bitstream.tcl` | HLS IP → 位流 + `.hwh`（`reset_run` 不可删） |
 | `gen_md5sums.py` | 从 `FILES.txt` 生成 `MD5SUMS.txt` |
 
-`build/ip_repo/rgb2gray/` 另存了两份打包 IP 的接口快照，用于核对 2.3 的寄存器偏移：
+`build/ip_repo/rgb2gray/` 是打包 IP 整包，也是核对 2.3 寄存器偏移的依据：
 
-| 文件 | 内容 |
+| 路径 | 内容 |
 |---|---|
 | `component.xml` | AXI 接口清单、`s_axilite` 寄存器地址表、IP 文件清单 |
+| `hdl/verilog/`、`hdl/vhdl/` | Vitis HLS 生成的两套 RTL |
+| `drivers/`、`xgui/` | 裸机驱动与 IP 配置界面 |
 | `constraints/rgb2gray_ooc.xdc` | OOC 综合时钟 `create_clock -period 10.000`（对应 100 MHz） |
 
-它们不是完整 IP：生成的 HDL 未随仓库提交，不能直接拿这个目录去 `update_ip_catalog`。完整 IP 由 `run_hls.ps1` 的 package 步骤从 `src/hls/` 生成；生成后把新的 `component.xml` 与快照对照，即可发现寄存器偏移是否后移。
+把 `ip_repo_paths` 指向 `build/ip_repo` 后 `update_ip_catalog` 即可直接打开 BD；`build/bd/design_1.tcl` 能在新工程里重建整张 Block Design。要从源码重新生成 IP，仍走 `run_hls.ps1` 的 package 步骤；生成后把新的 `component.xml` 与仓库里的对照，确认 `s_axi_control` 的寄存器偏移没有移动。
 
 排障经验见同仓库 `skill/` 目录（17 个真实案例）。
 
